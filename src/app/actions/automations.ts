@@ -3,7 +3,7 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
-import { AutomationTrigger, AutomationAction } from "@prisma/client"
+import { AutomationTrigger, AutomationAction, Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache"
 
 async function requireAdmin() {
@@ -29,9 +29,11 @@ export async function createAutomation(opts: {
     data: {
       name: opts.name.trim(),
       trigger: opts.trigger,
-      conditions: opts.conditions && Object.keys(opts.conditions).length ? opts.conditions : undefined,
+      conditions: opts.conditions && Object.keys(opts.conditions).length
+        ? (opts.conditions as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
       action: opts.action,
-      actionConfig: opts.actionConfig,
+      actionConfig: opts.actionConfig as Prisma.InputJsonValue,
     },
   })
 
@@ -53,7 +55,20 @@ export async function updateAutomation(
   const session = await requireAdmin()
   if (!session) return { error: "Unauthorized" }
 
-  await db.automation.update({ where: { id }, data: opts })
+  await db.automation.update({
+    where: { id },
+    data: {
+      ...opts,
+      conditions: opts.conditions === null
+        ? Prisma.JsonNull
+        : opts.conditions
+          ? (opts.conditions as Prisma.InputJsonValue)
+          : undefined,
+      actionConfig: opts.actionConfig
+        ? (opts.actionConfig as Prisma.InputJsonValue)
+        : undefined,
+    },
+  })
   revalidatePath("/automations")
   return { ok: true }
 }

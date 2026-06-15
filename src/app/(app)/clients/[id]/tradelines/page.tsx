@@ -12,7 +12,7 @@ import {
   cardAgeYears,
 } from "@/lib/tradeline-utils"
 import { TradelineOrderStatus } from "@prisma/client"
-import OrderStatusButton from "../../tradelines/[id]/OrderStatusButton"
+import OrderStatusButton from "@/app/(app)/tradelines/[id]/OrderStatusButton"
 import AssignButton from "./AssignButton"
 
 export default async function ClientTradelinesPage({
@@ -124,7 +124,7 @@ export default async function ClientTradelinesPage({
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold text-ink">{formatLimit(o.pricePaidCents)}</p>
+                      <p className="text-sm font-semibold text-ink">{formatLimit(o.pricePaidCents ?? 0)}</p>
                       <p className="text-xs text-muted">Commission: {formatLimit(o.commissionCents ?? 0)}</p>
                       {o.vendorPaidAt && (
                         <p className="text-xs text-success">Vendor paid {new Date(o.vendorPaidAt).toLocaleDateString()}</p>
@@ -177,7 +177,7 @@ export default async function ClientTradelinesPage({
                     <td className="px-5 py-3 text-xs">
                       {o.postedVerifiedAt ? <span className="text-success">✓ Verified</span> : <span className="text-muted">—</span>}
                     </td>
-                    <td className="px-5 py-3 text-xs text-muted">{formatLimit(o.pricePaidCents)}</td>
+                    <td className="px-5 py-3 text-xs text-muted">{formatLimit(o.pricePaidCents ?? 0)}</td>
                   </tr>
                 )
               })}

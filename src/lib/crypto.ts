@@ -8,6 +8,8 @@ function key(): Buffer {
   return Buffer.from(k, "base64");
 }
 
+export const encrypt = (plain: string) => encryptPII(plain)
+
 export function encryptPII(plain: string): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key(), iv);

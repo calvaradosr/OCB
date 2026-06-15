@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     ? await Promise.all([
         db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
         db.disputeItem.count({ where: { outcome: "DELETED" } }),
-        db.dispute.count({ where: { outcome: "PENDING" } }),
+        db.disputeItem.count({ where: { outcome: "PENDING" } }),
       ])
     : [null, null, null]
 
@@ -46,17 +46,14 @@ export default async function DashboardPage() {
     : null
 
   // ── Revenue stats ─────────────────────────────────────────────────────────────
-  const [collectedThisMonth, overdueCount, mrrCents] = canBilling
+  const [collectedThisMonth, overdueCount, activeSubscriptions] = canBilling
     ? await Promise.all([
         db.invoice.aggregate({
           _sum: { amountCents: true },
-          where: { status: "PAID", updatedAt: { gte: startOfMonth } },
+          where: { status: "PAID", createdAt: { gte: startOfMonth } },
         }).then(r => r._sum.amountCents ?? 0),
-        db.invoice.count({ where: { status: "OVERDUE" } }),
-        db.subscription.aggregate({
-          _sum: { amountCents: true },
-          where: { status: { in: ["ACTIVE", "TRIALING"] } },
-        }).then(r => r._sum.amountCents ?? 0).catch(() => 0),
+        db.invoice.count({ where: { status: "FAILED" } }),
+        db.subscription.count({ where: { status: { in: ["active", "trialing"] } } }),
       ])
     : [null, null, null]
 
@@ -75,7 +72,7 @@ export default async function DashboardPage() {
 
   // ── Overdues FCRA ─────────────────────────────────────────────────────────────
   const overdueDisputes = canDisputes
-    ? await db.dispute.count({
+    ? await db.disputeItem.count({
         where: {
           outcome: "PENDING",
           dueAt: { lt: now },
@@ -114,9 +111,9 @@ export default async function DashboardPage() {
         )}
         {canBilling && (
           <>
-            <KPICard label="Collected this month" value={`$${((collectedThisMonth as number) / 100).toLocaleString()}`} color="text-success" />
-            <KPICard label="MRR" value={`$${((mrrCents as number) / 100).toLocaleString()}`} />
-            <KPICard label="Overdue invoices" value={String(overdueCount ?? "—")} warningIf={!!overdueCount} />
+            <KPICard label="Collected this month" value={`$${(((collectedThisMonth as number) ?? 0) / 100).toLocaleString()}`} color="text-success" />
+            <KPICard label="Active subscriptions" value={String(activeSubscriptions ?? "—")} />
+            <KPICard label="Failed invoices" value={String(overdueCount ?? "—")} warningIf={!!overdueCount} />
           </>
         )}
       </div>

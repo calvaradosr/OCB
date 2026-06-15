@@ -81,7 +81,7 @@ export default async function PortalTradelinesPage() {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold text-ink">{formatLimit(o.pricePaidCents)}</p>
+                      <p className="text-sm font-semibold text-ink">{formatLimit(o.pricePaidCents ?? 0)}</p>
                       {o.removalDate && (
                         <p className="text-xs text-muted">Removal: {new Date(o.removalDate).toLocaleDateString()}</p>
                       )}
@@ -136,7 +136,7 @@ export default async function PortalTradelinesPage() {
                       {o.postedVerifiedAt && <span className="text-xs text-success">✓ Verified</span>}
                     </div>
                   </div>
-                  <p className="text-sm text-muted">{formatLimit(o.pricePaidCents)}</p>
+                  <p className="text-sm text-muted">{formatLimit(o.pricePaidCents ?? 0)}</p>
                 </div>
               )
             })}

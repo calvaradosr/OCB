@@ -19,7 +19,8 @@
       "Bash(docker exec *)",
       "Bash(npx tsx *)",
       "Bash(open *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

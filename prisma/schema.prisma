@@ -301,8 +301,8 @@ model Note {
   id        String   @id @default(cuid())
   client    Client   @relation(fields: [clientId], references: [id])
   clientId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
+  author    User?    @relation(fields: [authorId], references: [id])
+  authorId  String?
   body      String
   createdAt DateTime @default(now())
 

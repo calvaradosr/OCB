@@ -85,7 +85,6 @@ export async function runAutomations(ctx: TriggerContext): Promise<void> {
           await db.note.create({
             data: {
               clientId: ctx.clientId!,
-              authorId: null,
               body: `[Auto-task] ${text}`,
             },
           })
