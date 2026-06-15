@@ -53,6 +53,26 @@ enum LetterTarget {
   STATE_AG
 }
 
+// ─── Automations (M4) ────────────────────────────────────────────────────────
+
+enum AutomationTrigger {
+  REPORT_IMPORTED
+  DISPUTE_OUTCOME_DELETED
+  DISPUTE_OUTCOME_ANY
+  FCRA_CLOCK_30_DAYS
+  FCRA_CLOCK_45_DAYS
+  CLIENT_CREATED
+  INVOICE_OVERDUE
+}
+
+enum AutomationAction {
+  SEND_EMAIL
+  SEND_SMS
+  CREATE_TASK
+  CHARGE_PER_DELETE
+  NOTIFY_CLIENT
+}
+
 // ─── Tradelines (Phase 3 / M6) ───────────────────────────────────────────────
 
 enum TradelineOrderStatus {
@@ -120,13 +140,14 @@ model User {
   name         String
   role         Role
   mfaEnabled   Boolean  @default(false)
-  mfaSecret    String?  // TOTP secret; set during /auth/mfa-setup, used each login
+  mfaSecret    String?
   active       Boolean  @default(true)
-  orgId        String   @default("ocb") // future white-label readiness
+  orgId        String   @default("ocb")
   clients      Client[] @relation("AssignedAgent")
   notes        Note[]
   auditLogs    AuditLog[]
   loanFiles    LoanFile[] @relation("LoanProcessor")
+  affiliate    Affiliate?
   createdAt    DateTime @default(now())
 }
 
@@ -164,7 +185,9 @@ model Client {
   // Stripe customer id — created on first billing action
   stripeCustomerId String?
   // Portal login: clients authenticate via their own email+password (Role=CLIENT)
-  portalUserId    String? // links to User.id with role=CLIENT
+  portalUserId    String?
+  // Affiliate referral tracking
+  referral        Referral?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -506,7 +529,7 @@ model AuditLog {
   id        String   @id @default(cuid())
   actor     User?    @relation(fields: [actorId], references: [id])
   actorId   String?
-  action    String // VIEW | CREATE | UPDATE | DELETE | EXPORT | LOGIN
+  action    String
   entity    String
   entityId  String?
   detail    Json?
@@ -514,4 +537,64 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+// ─── Automations (M4) ────────────────────────────────────────────────────────
+
+model Automation {
+  id            String              @id @default(cuid())
+  orgId         String              @default("ocb")
+  name          String
+  trigger       AutomationTrigger
+  conditions    Json?               // optional filter map e.g. { "module": "CREDIT_REPAIR" }
+  action        AutomationAction
+  actionConfig  Json                // varies by action type
+  active        Boolean             @default(true)
+  logs          AutomationLog[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([orgId, trigger, active])
+}
+
+model AutomationLog {
+  id            String      @id @default(cuid())
+  automation    Automation  @relation(fields: [automationId], references: [id])
+  automationId  String
+  clientId      String?
+  triggeredBy   String?     // entityId that fired the trigger (reportId, disputeId, etc.)
+  result        String      // SUCCESS | FAILED
+  detail        Json?
+  createdAt     DateTime    @default(now())
+
+  @@index([automationId, createdAt])
+}
+
+// ─── Affiliates (M4) ─────────────────────────────────────────────────────────
+
+model Affiliate {
+  id             String     @id @default(cuid())
+  orgId          String     @default("ocb")
+  user           User       @relation(fields: [userId], references: [id])
+  userId         String     @unique
+  code           String     @unique   // referral code embedded in signup links
+  commissionPct  Int        @default(10) // percent of client's first collected invoice
+  active         Boolean    @default(true)
+  referrals      Referral[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model Referral {
+  id              String     @id @default(cuid())
+  orgId           String     @default("ocb")
+  affiliate       Affiliate  @relation(fields: [affiliateId], references: [id])
+  affiliateId     String
+  client          Client     @relation(fields: [clientId], references: [id])
+  clientId        String     @unique
+  commissionCents Int?       // calculated when invoice is paid
+  paidAt          DateTime?
+  createdAt       DateTime   @default(now())
+
+  @@index([affiliateId, paidAt])
 }

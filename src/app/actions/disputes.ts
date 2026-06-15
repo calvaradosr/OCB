@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac"
 import { writeAuditLog } from "@/lib/audit"
 import { generateBureauLetters, SelectedItem } from "@/lib/letters/generate"
 import { calculateDueDate } from "@/lib/fcra"
+import { runAutomations } from "@/lib/automation"
 import fs from "fs/promises"
 import path from "path"
 
@@ -208,9 +209,10 @@ export async function recordOutcome(
   if (!session?.user?.id) throw new Error("Not authenticated")
   if (!can(session.user.role, "disputes:write")) throw new Error("Forbidden")
 
-  await db.disputeItem.update({
+  const item = await db.disputeItem.update({
     where: { id: disputeItemId },
     data: { outcome, resolvedAt: new Date() },
+    include: { dispute: { select: { clientId: true } } },
   })
 
   await writeAuditLog({
@@ -220,4 +222,10 @@ export async function recordOutcome(
     entityId: disputeItemId,
     detail: { outcome },
   })
+
+  const clientId = item.dispute.clientId
+  runAutomations({ trigger: "DISPUTE_OUTCOME_ANY", clientId, triggeredBy: disputeItemId }).catch(() => {})
+  if (outcome === "DELETED") {
+    runAutomations({ trigger: "DISPUTE_OUTCOME_DELETED", clientId, triggeredBy: disputeItemId }).catch(() => {})
+  }
 }

@@ -10,6 +10,8 @@ const NAV = [
   { href: "/loans", label: "Loans" },
   { href: "/lenders", label: "Lenders" },
   { href: "/tradelines", label: "Tradelines" },
+  { href: "/automations", label: "Automations" },
+  { href: "/affiliates", label: "Affiliates" },
 ]
 
 export default function Sidebar({ userName, userRole }: { userName: string; userRole: Role }) {

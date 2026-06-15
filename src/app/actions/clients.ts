@@ -6,6 +6,7 @@ import { encryptPII, decryptPII } from "@/lib/crypto"
 import { writeAuditLog } from "@/lib/audit"
 import { can } from "@/lib/rbac"
 import { isValidStatus, type ClientStatus } from "@/lib/client-utils"
+import { runAutomations } from "@/lib/automation"
 import { z } from "zod"
 
 const clientSchema = z.object({
@@ -74,6 +75,8 @@ export async function createClient(
       data: { clientId: client.id, authorId: session.user.id, body: initialNote.trim() },
     })
   }
+
+  runAutomations({ trigger: "CLIENT_CREATED", clientId: client.id, triggeredBy: client.id }).catch(() => {})
 
   redirect(`/clients/${client.id}`)
 }

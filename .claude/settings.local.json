@@ -7,7 +7,19 @@
       "Bash(npx tsc *)",
       "Bash(npm run *)",
       "Bash(npm test *)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(gh auth *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(openssl rand *)",
+      "Bash(pg_isready *)",
+      "Bash(brew list *)",
+      "Bash(docker info *)",
+      "Bash(docker run *)",
+      "Bash(docker exec *)",
+      "Bash(npx tsx *)",
+      "Bash(open *)",
+      "Bash(git add *)"
     ]
   }
 }

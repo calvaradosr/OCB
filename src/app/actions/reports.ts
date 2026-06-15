@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac"
 import { writeAuditLog } from "@/lib/audit"
 import { AUTO_FLAG_TYPES } from "@/lib/report-utils"
 import { verifyPostingForClient } from "@/app/actions/tradelines"
+import { runAutomations } from "@/lib/automation"
 
 export type ImportedItem = {
   creditorName: string
@@ -76,6 +77,7 @@ export async function importReport(
 
   // Auto-check tradeline posting whenever a new report arrives (non-blocking)
   verifyPostingForClient(clientId, report.id).catch(() => {})
+  runAutomations({ trigger: "REPORT_IMPORTED", clientId, triggeredBy: report.id }).catch(() => {})
 
   return { reportId: report.id }
 }
