@@ -1,5 +1,5 @@
 import { signOut } from "@/auth"
-import type { Role } from "@/lib/rbac"
+import { can, type Role } from "@/lib/rbac"
 import { NavLink } from "./NavLink"
 
 const NAV = [
@@ -14,7 +14,14 @@ const NAV = [
   { href: "/affiliates", label: "Affiliates" },
 ]
 
+const SETTINGS_NAV = [
+  { href: "/settings/users", label: "Users" },
+  { href: "/settings/audit-log", label: "Audit Log" },
+]
+
 export default function Sidebar({ userName, userRole }: { userName: string; userRole: Role }) {
+  const showSettings = can(userRole, "settings:write")
+
   return (
     <aside className="w-60 shrink-0 min-h-screen bg-white border-r border-secondary-soft flex flex-col">
       <div className="px-6 py-5">
@@ -27,6 +34,18 @@ export default function Sidebar({ userName, userRole }: { userName: string; user
         {NAV.map(item => (
           <NavLink key={item.href} href={item.href} label={item.label} />
         ))}
+
+        {showSettings && (
+          <>
+            <div className="pt-4 pb-1 px-3">
+              <p className="text-xs text-muted font-semibold uppercase tracking-widest">Settings</p>
+            </div>
+            <NavLink href="/settings" label="Overview" />
+            {SETTINGS_NAV.map(item => (
+              <NavLink key={item.href} href={item.href} label={item.label} />
+            ))}
+          </>
+        )}
       </nav>
 
       <div className="px-4 py-4 border-t border-secondary-soft">
