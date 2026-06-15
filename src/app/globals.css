@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #A8862B;
+  --primary-dark: #8A6E20;
+  --secondary: #DFC172;
+  --secondary-soft: #F3E8C8;
+  --ink: #2B2620;
+  --muted: #7A6F5C;
+  --bg: #FAF8F2;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+}

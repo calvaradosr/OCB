@@ -1,0 +1,64 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+
+# Required repository secrets (add in GitHub → Settings → Secrets):
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   ECR_REGISTRY, ECR_REPOSITORY, ECS_CLUSTER, ECS_SERVICE
+#   DATABASE_URL, AUTH_SECRET, PII_ENCRYPTION_KEY, NEXTAUTH_URL
+#   STRIPE_SECRET_KEY, TWILIO_ACCOUNT_SID, etc.
+
+jobs:
+  deploy:
+    name: Build → ECR → ECS
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install & build
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          PII_ENCRYPTION_KEY: ${{ secrets.PII_ENCRYPTION_KEY }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      - name: Deploy to ECS
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER }}
+          SERVICE: ${{ secrets.ECS_SERVICE }}
+        run: |
+          aws ecs update-service --cluster $CLUSTER --service $SERVICE --force-new-deployment

@@ -1,0 +1,517 @@
+// OCB Platform — Phase 1 data model (see docs/PROJECT_BRIEF.md §7)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+  LOAN_PROCESSOR
+  AFFILIATE
+  CLIENT
+}
+
+enum Bureau {
+  EXPERIAN
+  EQUIFAX
+  TRANSUNION
+}
+
+enum ItemType {
+  COLLECTION
+  CHARGE_OFF
+  LATE_PAYMENT
+  INQUIRY
+  REPOSSESSION
+  BANKRUPTCY
+  JUDGMENT
+  TAX_LIEN
+  PERSONAL_INFO
+  OTHER
+}
+
+enum DisputeOutcome {
+  PENDING
+  DELETED
+  REPAIRED
+  VERIFIED
+  NO_RESPONSE
+}
+
+enum LetterTarget {
+  BUREAU
+  FURNISHER
+  COLLECTOR
+  CFPB
+  FTC
+  STATE_AG
+}
+
+// ─── Tradelines (Phase 3 / M6) ───────────────────────────────────────────────
+
+enum TradelineOrderStatus {
+  PENDING_PAYMENT     // order created, awaiting client payment
+  PAID                // payment received
+  INFO_SENT_TO_VENDOR // AU info packet sent to cardholder/vendor
+  POSTED              // tradeline appears on client credit report
+  REMOVED             // AU removed at end of rental period
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Loan Processing (Phase 2 / M5) ─────────────────────────────────────────
+
+enum LoanType {
+  PERSONAL
+  BUSINESS
+  AUTO
+  MORTGAGE
+  SBA_7A
+  SBA_504
+  OTHER
+}
+
+enum LoanStatus {
+  INTAKE
+  PRE_QUAL
+  DOCS_COLLECTION
+  PROCESSING
+  SUBMITTED
+  CONDITIONAL_APPROVAL
+  CLEAR_TO_CLOSE
+  FUNDED
+  DECLINED
+  WITHDRAWN
+}
+
+enum LoanConditionStatus {
+  OPEN
+  CLEARED
+  WAIVED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AgreementType {
+  CLIENT_AGREEMENT      // CROA §1679b(b) written contract
+  CANCELLATION_NOTICE   // CROA 3-business-day right to cancel
+  POWER_OF_ATTORNEY
+  OTHER
+}
+
+enum AgreementStatus {
+  PENDING
+  SIGNED
+  DECLINED
+  EXPIRED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  mfaEnabled   Boolean  @default(false)
+  mfaSecret    String?  // TOTP secret; set during /auth/mfa-setup, used each login
+  active       Boolean  @default(true)
+  orgId        String   @default("ocb") // future white-label readiness
+  clients      Client[] @relation("AssignedAgent")
+  notes        Note[]
+  auditLogs    AuditLog[]
+  loanFiles    LoanFile[] @relation("LoanProcessor")
+  createdAt    DateTime @default(now())
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  orgId           String   @default("ocb")
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  // PII stored encrypted at the application layer (src/lib/crypto.ts)
+  ssnEncrypted    String?
+  dobEncrypted    String?
+  addressLine1    String?
+  addressLine2    String?
+  city            String?
+  state           String?
+  zip             String?
+  status          String   @default("LEAD") // LEAD | CONSULT | SIGNED | ACTIVE | PAUSED | COMPLETE
+  modules         String[] @default(["CREDIT_REPAIR"]) // CREDIT_REPAIR | LOAN | TRADELINE
+  assignedAgent   User?    @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  assignedAgentId String?
+  reports         CreditReport[]
+  items           ReportItem[]
+  disputes        Dispute[]
+  letters         Letter[]
+  documents       Document[]
+  notes           Note[]
+  invoices        Invoice[]
+  subscriptions   Subscription[]
+  agreements      Agreement[]
+  messages        Message[]
+  loanFiles         LoanFile[]
+  tradelineOrders   TradelineOrder[]
+  // Stripe customer id — created on first billing action
+  stripeCustomerId String?
+  // Portal login: clients authenticate via their own email+password (Role=CLIENT)
+  portalUserId    String? // links to User.id with role=CLIENT
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, assignedAgentId])
+}
+
+model CreditReport {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  source    String // SMARTCREDIT | IDENTITYIQ | MANUAL_UPLOAD | MANUAL_ENTRY
+  pulledAt  DateTime @default(now())
+  scoreExperian   Int?
+  scoreEquifax    Int?
+  scoreTransunion Int?
+  rawS3Key  String? // original report file in S3
+  items     ReportItem[]
+}
+
+model ReportItem {
+  id           String     @id @default(cuid())
+  client       Client     @relation(fields: [clientId], references: [id])
+  clientId     String
+  report       CreditReport? @relation(fields: [reportId], references: [id])
+  reportId     String?
+  type         ItemType
+  creditorName String
+  accountNumberMasked String?
+  // Per-bureau presence: an item may report on 1–3 bureaus
+  onExperian   Boolean    @default(false)
+  onEquifax    Boolean    @default(false)
+  onTransunion Boolean    @default(false)
+  balance      Decimal?   @db.Decimal(12, 2)
+  dateOpened   DateTime?
+  flagged      Boolean    @default(false) // auto-flag, staff can override
+  notes        String?
+  disputes     DisputeItem[]
+  createdAt    DateTime   @default(now())
+}
+
+model Dispute {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  round     Int      @default(1)
+  strategy  String   // e.g. NOT_MINE | INACCURATE | DEBT_VALIDATION | GOODWILL | ID_THEFT
+  items     DisputeItem[]
+  letters   Letter[]
+  createdAt DateTime @default(now())
+}
+
+// join: which items are in this dispute, with per-bureau outcome tracking
+model DisputeItem {
+  id         String         @id @default(cuid())
+  dispute    Dispute        @relation(fields: [disputeId], references: [id])
+  disputeId  String
+  item       ReportItem     @relation(fields: [itemId], references: [id])
+  itemId     String
+  bureau     Bureau
+  outcome    DisputeOutcome @default(PENDING)
+  sentAt     DateTime?
+  dueAt      DateTime? // FCRA 30/45-day clock — automation creates follow-up task at dueAt
+  resolvedAt DateTime?
+
+  @@unique([disputeId, itemId, bureau])
+}
+
+model LetterTemplate {
+  id        String       @id @default(cuid())
+  name      String
+  target    LetterTarget
+  category  String // INITIAL_DISPUTE | REINVESTIGATION | MOV | DEBT_VALIDATION | GOODWILL | ID_THEFT | INQUIRY | COMPLAINT ...
+  body      String // markdown with {{merge.fields}}
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+}
+
+model Letter {
+  id         String       @id @default(cuid())
+  client     Client       @relation(fields: [clientId], references: [id])
+  clientId   String
+  dispute    Dispute?     @relation(fields: [disputeId], references: [id])
+  disputeId  String?
+  target     LetterTarget
+  bureau     Bureau? // set when target = BUREAU
+  templateId String?
+  renderedBody String
+  pdfS3Key   String?
+  sentAt     DateTime?
+  trackingNumber String? // certified mail / Lob id
+  complaintNumber String? // CFPB/FTC confirmation number after portal submission
+  createdAt  DateTime     @default(now())
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  client      Client   @relation(fields: [clientId], references: [id])
+  clientId    String
+  category    String   // ID | PROOF_OF_ADDRESS | AGREEMENT | UTILITY_BILL | OTHER
+  s3Key       String
+  fileName    String
+  fileSize    Int?     // bytes
+  contentType String?
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  client        Client   @relation(fields: [clientId], references: [id])
+  clientId      String
+  stripeInvoiceId String?
+  amountCents   Int
+  description   String
+  // CROA: charge only after work performed — workPerformedAt must be set before charge
+  workPerformedAt DateTime?
+  status        String   @default("DRAFT") // DRAFT | OPEN | PAID | FAILED | VOID
+  createdAt     DateTime @default(now())
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  client     Client   @relation(fields: [clientId], references: [id])
+  clientId   String
+  // senderRole: CLIENT or staff role; body is the message text
+  senderRole String   // CLIENT | AGENT | MANAGER | ADMIN
+  senderId   String   // User.id
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+model Agreement {
+  id          String          @id @default(cuid())
+  client      Client          @relation(fields: [clientId], references: [id])
+  clientId    String
+  type        AgreementType
+  status      AgreementStatus @default(PENDING)
+  // Template body (CROA-compliant copy) with {{merge}} placeholders
+  body        String
+  // After signing: base-64 PNG of the signature pad saved here, PDF to S3
+  signatureDataUrl String?
+  pdfS3Key    String?
+  signedAt    DateTime?
+  expiresAt   DateTime?       // CROA cancellation window ends 3 business days after signedAt
+  sentAt      DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+
+  @@index([clientId])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  client               Client   @relation(fields: [clientId], references: [id])
+  clientId             String
+  stripeSubscriptionId String   @unique
+  stripeProductId      String?
+  stripePriceId        String?
+  status               String   // active | past_due | canceled | unpaid | trialing
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model Lender {
+  id               String   @id @default(cuid())
+  orgId            String   @default("ocb")
+  name             String
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  programs         String[] // e.g. ["FHA","VA","CONV","SBA"]
+  minCreditScore   Int?
+  submissionNotes  String?
+  active           Boolean  @default(true)
+  loanFiles        LoanFile[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orgId, active])
+}
+
+model LoanFile {
+  id                  String      @id @default(cuid())
+  orgId               String      @default("ocb")
+  client              Client      @relation(fields: [clientId], references: [id])
+  clientId            String
+  lender              Lender?     @relation(fields: [lenderId], references: [id])
+  lenderId            String?
+  processor           User?       @relation("LoanProcessor", fields: [processorId], references: [id])
+  processorId         String?
+  type                LoanType
+  status              LoanStatus  @default(INTAKE)
+  // Financials (stored in cents for precision)
+  amountRequestedCents Int?
+  amountApprovedCents  Int?
+  interestRate        Decimal?    @db.Decimal(6, 4) // e.g. 6.9500
+  termMonths          Int?
+  commissionCents     Int?
+  // Credit-readiness bridge: score threshold that triggered this file
+  creditScoreAtConversion Int?
+  notes               String?
+  fundedAt            DateTime?
+  statusChangedAt     DateTime    @default(now())
+  conditions          LoanCondition[]
+  documents           LoanDocument[]
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([clientId, status])
+  @@index([orgId, status])
+}
+
+model LoanCondition {
+  id          String              @id @default(cuid())
+  loanFile    LoanFile            @relation(fields: [loanFileId], references: [id])
+  loanFileId  String
+  description String
+  status      LoanConditionStatus @default(OPEN)
+  clearedAt   DateTime?
+  clearedById String?             // User.id who cleared it
+  notes       String?
+  createdAt   DateTime            @default(now())
+
+  @@index([loanFileId])
+}
+
+model LoanDocument {
+  id          String   @id @default(cuid())
+  loanFile    LoanFile @relation(fields: [loanFileId], references: [id])
+  loanFileId  String
+  category    String   // PAYSTUB | BANK_STATEMENT | TAX_RETURN | W2 | BUSINESS_FINANCIALS | ARTICLES | PURCHASE_AGREEMENT | APPRAISAL | OTHER
+  s3Key       String
+  fileName    String
+  fileSize    Int?
+  contentType String?
+  uploadedBy  String   // User.id or "CLIENT"
+  createdAt   DateTime @default(now())
+
+  @@index([loanFileId])
+}
+
+model TradelineVendor {
+  id             String      @id @default(cuid())
+  orgId          String      @default("ocb")
+  name           String
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  // Payout: how much we pay this vendor per AU slot
+  payoutTerms    String?     // free-text: "Net 30 after posting verified"
+  active         Boolean     @default(true)
+  tradelines     Tradeline[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([orgId, active])
+}
+
+model Tradeline {
+  id              String           @id @default(cuid())
+  orgId           String           @default("ocb")
+  vendor          TradelineVendor  @relation(fields: [vendorId], references: [id])
+  vendorId        String
+  // Card details
+  bank            String           // e.g. "Chase", "Bank of America"
+  creditLimitCents Int
+  // Age: card opening date drives how old the account will appear on bureau
+  cardOpenedDate  DateTime
+  statementDate   Int              // day of month (1-31) the statement closes
+  // Inventory
+  totalAuSpots    Int              @default(1)
+  availableAuSpots Int            @default(1)
+  // Pricing
+  costCents       Int              // what we pay vendor per slot
+  retailPriceCents Int             // what client pays us
+  active          Boolean          @default(true)
+  notes           String?
+  orders          TradelineOrder[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([orgId, active, availableAuSpots])
+}
+
+model TradelineOrder {
+  id              String               @id @default(cuid())
+  orgId           String               @default("ocb")
+  client          Client               @relation(fields: [clientId], references: [id])
+  clientId        String
+  tradeline       Tradeline            @relation(fields: [tradelineId], references: [id])
+  tradelineId     String
+  status          TradelineOrderStatus @default(PENDING_PAYMENT)
+  // AU (Authorized User) info collected from client
+  auFirstName     String?
+  auLastName      String?
+  auDobEncrypted  String?              // encrypted via crypto.ts
+  auSsnEncrypted  String?              // encrypted via crypto.ts (optional — some vendors don't need)
+  auAddress       String?
+  // Financial tracking
+  pricePaidCents  Int?                 // what client paid
+  vendorCostCents Int?                 // what we owe vendor for this slot
+  vendorPaidAt    DateTime?
+  commissionCents Int?                 // pricePaidCents - vendorCostCents
+  // Lifecycle
+  infoSentAt      DateTime?
+  removalDate     DateTime?            // when AU will be removed from card
+  // Posting verification: set when we confirm the line appears on a credit report
+  postedVerifiedAt  DateTime?
+  verifiedReportId  String?            // CreditReport.id that confirmed posting
+  cancelledAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([clientId, status])
+  @@index([tradelineId, status])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     User?    @relation(fields: [actorId], references: [id])
+  actorId   String?
+  action    String // VIEW | CREATE | UPDATE | DELETE | EXPORT | LOGIN
+  entity    String
+  entityId  String?
+  detail    Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}
