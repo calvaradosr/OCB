@@ -21,22 +21,40 @@ function daysInStage(statusChangedAt: Date) {
   return days === 0 ? "Today" : `${days}d`
 }
 
-export default async function LoansPage() {
+export default async function LoansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string; view?: string }>
+}) {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
 
+  const { clientId, view } = await searchParams
+  const isMyQueue = view === "mine"
   const now = new Date()
 
+  // For processor queue: show only files assigned to the current user
+  const processorFilter = isMyQueue ? { processorId: session.user.id } : {}
+  const clientFilter = clientId ? { clientId } : {}
+
+  const where = { ...processorFilter, ...clientFilter }
+
   const loanFiles = await db.loanFile.findMany({
+    where,
     include: {
-      client: { select: { firstName: true, lastName: true } },
+      client: { select: { id: true, firstName: true, lastName: true } },
       lender: { select: { name: true } },
       processor: { select: { name: true } },
       conditions: { where: { status: "OPEN" }, select: { id: true } },
     },
     orderBy: { updatedAt: "desc" },
   })
+
+  // If viewing a specific client, load their name for the header
+  const clientName = clientId
+    ? await db.client.findUnique({ where: { id: clientId }, select: { firstName: true, lastName: true } })
+    : null
 
   // Group by status for the pipeline view
   const grouped = PIPELINE_STAGES.reduce<Record<LoanStatus, typeof loanFiles>>(
@@ -54,6 +72,7 @@ export default async function LoansPage() {
   }
 
   const canWrite = can(session.user.role, "loans:write")
+  const isProcessor = session.user.role === "LOAN_PROCESSOR"
 
   // KPI stats
   const totalPipelineCents = loanFiles
@@ -68,21 +87,63 @@ export default async function LoansPage() {
 
   const activeFiles = loanFiles.filter(f => PIPELINE_STAGES.includes(f.status)).length
 
+  const openConditions = loanFiles.reduce((s, f) => s + f.conditions.length, 0)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Loan Processing</h1>
-          <p className="text-muted text-sm mt-1">{loanFiles.length} total files</p>
+          {clientName ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Link href="/loans" className="text-sm text-muted hover:text-ink transition-colors">← All loans</Link>
+              </div>
+              <h1 className="text-2xl font-semibold text-ink">
+                {clientName.firstName} {clientName.lastName} — Loan Files
+              </h1>
+            </>
+          ) : isMyQueue ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Link href="/loans" className="text-sm text-muted hover:text-ink transition-colors">← All loans</Link>
+              </div>
+              <h1 className="text-2xl font-semibold text-ink">My Queue</h1>
+              <p className="text-muted text-sm mt-0.5">Files assigned to you</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-semibold text-ink">Loan Processing</h1>
+              <p className="text-muted text-sm mt-1">{loanFiles.length} total files</p>
+            </>
+          )}
         </div>
-        {canWrite && (
-          <Link
-            href="/loans/new"
-            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-colors"
-          >
-            + New Loan File
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Processor queue shortcut */}
+          {(isProcessor || can(session.user.role, "loans:write")) && !isMyQueue && !clientId && (
+            <Link
+              href="/loans?view=mine"
+              className="px-4 py-2 rounded-lg border border-secondary-soft text-sm text-muted hover:text-ink transition-colors"
+            >
+              My Queue {openConditions > 0 ? `(${openConditions} cond.)` : ""}
+            </Link>
+          )}
+          {canWrite && !clientId && (
+            <Link
+              href="/loans/new"
+              className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              + New Loan File
+            </Link>
+          )}
+          {canWrite && clientId && (
+            <Link
+              href={`/loans/new?clientId=${clientId}`}
+              className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              + New Loan File
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* KPI row */}
@@ -106,20 +167,69 @@ export default async function LoansPage() {
           </p>
           <p className="text-xs text-muted mt-0.5">{fundedThisMonth.length} files closed</p>
         </div>
-        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+        <div className={`bg-white rounded-xl border p-5 ${openConditions > 0 ? "border-warning/40" : "border-secondary-soft"}`}>
           <p className="text-xs text-muted">Open conditions</p>
-          <p className="text-2xl font-semibold text-ink mt-1">
-            {loanFiles.reduce((s, f) => s + f.conditions.length, 0)}
+          <p className={`text-2xl font-semibold mt-1 ${openConditions > 0 ? "text-warning" : "text-ink"}`}>
+            {openConditions}
           </p>
           <p className="text-xs text-muted mt-0.5">awaiting clearance</p>
         </div>
       </div>
 
+      {/* My Queue: flat list with conditions highlighted */}
+      {isMyQueue && (
+        <div className="space-y-3">
+          {loanFiles.filter(f => PIPELINE_STAGES.includes(f.status)).length === 0 ? (
+            <div className="border-2 border-dashed border-secondary-soft rounded-xl p-12 text-center">
+              <p className="text-muted text-sm">No active files assigned to you.</p>
+            </div>
+          ) : (
+            loanFiles
+              .filter(f => PIPELINE_STAGES.includes(f.status))
+              .sort((a, b) => b.conditions.length - a.conditions.length)
+              .map(f => {
+                const colors = LOAN_STATUS_COLORS[f.status]
+                return (
+                  <Link
+                    key={f.id}
+                    href={`/loans/${f.id}`}
+                    className="flex items-center justify-between bg-white border border-secondary-soft rounded-xl p-4 hover:border-primary transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <p className="font-medium text-ink">
+                          {f.client.firstName} {f.client.lastName}
+                        </p>
+                        <p className="text-xs text-muted mt-0.5">
+                          {LOAN_TYPE_LABELS[f.type]}
+                          {f.lender ? ` · ${f.lender.name}` : ""}
+                          {f.amountRequestedCents ? ` · ${dollars(f.amountRequestedCents)}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {f.conditions.length > 0 && (
+                        <span className="text-xs font-semibold bg-warning/10 text-warning px-2.5 py-1 rounded-full">
+                          {f.conditions.length} open condition{f.conditions.length > 1 ? "s" : ""}
+                        </span>
+                      )}
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${colors.bg} ${colors.text}`}>
+                        {LOAN_STATUS_LABELS[f.status]}
+                      </span>
+                      <span className="text-xs text-muted">{daysInStage(f.statusChangedAt)}</span>
+                    </div>
+                  </Link>
+                )
+              })
+          )}
+        </div>
+      )}
+
       {/* Pipeline stage label */}
-      <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Pipeline</h2>
+      {!isMyQueue && <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Pipeline</h2>}
 
       {/* Pipeline stage columns (horizontal scroll) */}
-      <div className="overflow-x-auto pb-4">
+      {!isMyQueue && <div className="overflow-x-auto pb-4">
         <div className="flex gap-4 min-w-max">
           {PIPELINE_STAGES.map(status => {
             const files = grouped[status]
@@ -175,10 +285,10 @@ export default async function LoansPage() {
             )
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Terminated files table */}
-      {terminated.length > 0 && (
+      {!isMyQueue && terminated.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">
             Closed / Declined / Withdrawn
