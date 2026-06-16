@@ -61,14 +61,20 @@ export default function LoanEditForm({
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs text-muted mb-1">Lender</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs text-muted">Lender</label>
+          <a href="/lenders/new" className="text-xs text-primary hover:underline">+ Add lender</a>
+        </div>
         <select value={lenderId} onChange={e => setLenderId(e.target.value)} className={field}>
           <option value="">— None —</option>
           {lenders.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-xs text-muted mb-1">Processor</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs text-muted">Processor</label>
+          <a href="/lenders?tab=processors" className="text-xs text-primary hover:underline">+ Add processor</a>
+        </div>
         <select value={processorId} onChange={e => setProcessorId(e.target.value)} className={field}>
           <option value="">— Unassigned —</option>
           {processors.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

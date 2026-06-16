@@ -45,9 +45,6 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
-          mfaEnabled: user.mfaEnabled,
-          // mfaVerified starts false every session; set to true after TOTP check
-          mfaVerified: false,
         }
       },
     }),

@@ -77,7 +77,10 @@ export default function TradelineForm({
     <div className="bg-white rounded-xl border border-secondary-soft p-6 space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-xs text-muted mb-1">Vendor *</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-muted">Vendor *</label>
+            <a href="/tradelines/vendors/new" className="text-xs text-primary hover:underline">+ Add vendor</a>
+          </div>
           <select value={vendorId} onChange={e => setVendorId(e.target.value)} className={field}>
             <option value="">Select vendor…</option>
             {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { can } from "@/lib/rbac"
 import { db } from "@/lib/db"
 import InvitePanel from "./InvitePanel"
-import { RoleSelect, ToggleActiveButton, ResetMfaButton, ResetPasswordButton } from "./UserActions"
+import { RoleSelect, ToggleActiveButton, ResetPasswordButton } from "./UserActions"
 import type { Role } from "@/lib/rbac"
 
 export default async function UsersPage() {
@@ -44,7 +44,6 @@ export default async function UsersPage() {
               <th className="px-5 py-3 text-left text-xs text-muted font-medium">Name</th>
               <th className="px-5 py-3 text-left text-xs text-muted font-medium">Email</th>
               <th className="px-5 py-3 text-left text-xs text-muted font-medium">Role</th>
-              <th className="px-5 py-3 text-left text-xs text-muted font-medium">MFA</th>
               <th className="px-5 py-3 text-left text-xs text-muted font-medium">Status</th>
               <th className="px-5 py-3" />
             </tr>
@@ -64,13 +63,6 @@ export default async function UsersPage() {
                   )}
                 </td>
                 <td className="px-5 py-3">
-                  {u.mfaEnabled ? (
-                    <span className="text-xs text-success">Enabled</span>
-                  ) : (
-                    <span className="text-xs text-warning">Not set up</span>
-                  )}
-                </td>
-                <td className="px-5 py-3">
                   <span className={`text-xs font-medium ${u.active ? "text-success" : "text-muted"}`}>
                     {u.active ? "Active" : "Inactive"}
                   </span>
@@ -80,7 +72,6 @@ export default async function UsersPage() {
                     {u.id !== session.user.id && (
                       <ToggleActiveButton userId={u.id} active={u.active} />
                     )}
-                    {u.mfaEnabled && <ResetMfaButton userId={u.id} />}
                     <ResetPasswordButton userId={u.id} />
                   </div>
                 </td>

@@ -128,7 +128,10 @@ export function ClientForm({
             </select>
           </div>
           <div>
-            <label className="block text-sm text-muted mb-1">Assigned agent</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-muted">Assigned agent</label>
+              <a href="/settings/users" className="text-xs text-primary hover:underline">+ Add agent</a>
+            </div>
             <select
               name="assignedAgentId"
               defaultValue={defaultValues.assignedAgentId ?? ""}

@@ -26,6 +26,8 @@ export default async function LoansPage() {
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
 
+  const now = new Date()
+
   const loanFiles = await db.loanFile.findMany({
     include: {
       client: { select: { firstName: true, lastName: true } },
@@ -53,11 +55,24 @@ export default async function LoansPage() {
 
   const canWrite = can(session.user.role, "loans:write")
 
+  // KPI stats
+  const totalPipelineCents = loanFiles
+    .filter(f => PIPELINE_STAGES.includes(f.status))
+    .reduce((sum, f) => sum + (f.amountRequestedCents ?? 0), 0)
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const fundedThisMonth = loanFiles.filter(
+    f => f.status === "FUNDED" && f.statusChangedAt >= startOfMonth
+  )
+  const fundedValueCents = fundedThisMonth.reduce((s, f) => s + (f.amountRequestedCents ?? 0), 0)
+
+  const activeFiles = loanFiles.filter(f => PIPELINE_STAGES.includes(f.status)).length
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Loan Pipeline</h1>
+          <h1 className="text-2xl font-semibold text-ink">Loan Processing</h1>
           <p className="text-muted text-sm mt-1">{loanFiles.length} total files</p>
         </div>
         {canWrite && (
@@ -69,6 +84,39 @@ export default async function LoansPage() {
           </Link>
         )}
       </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Active pipeline</p>
+          <p className="text-2xl font-semibold text-ink mt-1">{activeFiles}</p>
+          <p className="text-xs text-muted mt-0.5">files in progress</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Pipeline value</p>
+          <p className="text-2xl font-semibold text-ink mt-1">
+            {totalPipelineCents > 0 ? `$${(totalPipelineCents / 100).toLocaleString()}` : "—"}
+          </p>
+          <p className="text-xs text-muted mt-0.5">active requests</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Funded this month</p>
+          <p className="text-2xl font-semibold text-success mt-1">
+            {fundedThisMonth.length > 0 ? `$${(fundedValueCents / 100).toLocaleString()}` : "—"}
+          </p>
+          <p className="text-xs text-muted mt-0.5">{fundedThisMonth.length} files closed</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Open conditions</p>
+          <p className="text-2xl font-semibold text-ink mt-1">
+            {loanFiles.reduce((s, f) => s + f.conditions.length, 0)}
+          </p>
+          <p className="text-xs text-muted mt-0.5">awaiting clearance</p>
+        </div>
+      </div>
+
+      {/* Pipeline stage label */}
+      <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Pipeline</h2>
 
       {/* Pipeline stage columns (horizontal scroll) */}
       <div className="overflow-x-auto pb-4">

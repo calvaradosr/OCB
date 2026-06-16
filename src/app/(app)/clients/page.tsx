@@ -7,6 +7,16 @@ import { CLIENT_STATUSES, STATUS_LABELS } from "@/lib/client-utils"
 
 const PAGE_SIZE = 25
 
+function ScorePill({ score }: { score: number | null | undefined }) {
+  if (!score) return <span className="text-muted text-xs">—</span>
+  const color =
+    score >= 740 ? "text-success" :
+    score >= 670 ? "text-primary" :
+    score >= 580 ? "text-warning" :
+    "text-danger"
+  return <span className={`text-sm font-bold ${color}`}>{score}</span>
+}
+
 export default async function ClientsPage({
   searchParams,
 }: {
@@ -50,6 +60,37 @@ export default async function ClientsPage({
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const canWrite = can(session.user.role, "clients:write")
 
+  // Batch-fetch latest credit report scores per client
+  const clientIds = clients.map(c => c.id)
+  const [latestReports, latestDisputes] = await Promise.all([
+    db.creditReport.findMany({
+      where: { clientId: { in: clientIds } },
+      orderBy: { pulledAt: "desc" },
+      distinct: ["clientId"],
+      select: {
+        clientId: true,
+        scoreExperian: true,
+        scoreEquifax: true,
+        scoreTransunion: true,
+        pulledAt: true,
+      },
+    }),
+    db.dispute.findMany({
+      where: { clientId: { in: clientIds } },
+      orderBy: { round: "desc" },
+      distinct: ["clientId"],
+      select: {
+        clientId: true,
+        round: true,
+        createdAt: true,
+        items: { select: { outcome: true, sentAt: true, dueAt: true } },
+      },
+    }),
+  ])
+
+  const reportMap = new Map(latestReports.map(r => [r.clientId, r]))
+  const disputeMap = new Map(latestDisputes.map(d => [d.clientId, d]))
+
   return (
     <div>
       {/* Header */}
@@ -77,14 +118,14 @@ export default async function ClientsPage({
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-1 mb-4 border-b border-secondary-soft">
+      <div className="flex gap-1 mb-4 border-b border-secondary-soft overflow-x-auto">
         {(["ALL", ...CLIENT_STATUSES] as const).map(s => {
           const params = new URLSearchParams({ ...(q ? { q } : {}), ...(agent ? { agent } : {}), status: s === "ALL" ? "" : s })
           return (
             <a
               key={s}
               href={`/clients?${params}`}
-              className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
+              className={`px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
                 (status ?? "ALL") === s
                   ? "border-primary text-primary font-medium"
                   : "border-transparent text-muted hover:text-ink"
@@ -111,9 +152,7 @@ export default async function ClientsPage({
         >
           <option value="">All agents</option>
           {agents.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
+            <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>
         {status && <input type="hidden" name="status" value={status} />}
@@ -133,45 +172,90 @@ export default async function ClientsPage({
       {/* Table */}
       {clients.length === 0 ? (
         <div className="rounded-xl border border-secondary-soft bg-white p-12 text-center">
-          <p className="text-muted text-sm">No clients found. {canWrite && <Link href="/clients/new" className="text-primary hover:underline">Add one?</Link>}</p>
+          <p className="text-muted text-sm">
+            No clients found.{" "}
+            {canWrite && <Link href="/clients/new" className="text-primary hover:underline">Add one?</Link>}
+          </p>
         </div>
       ) : (
         <div className="rounded-xl border border-secondary-soft bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-secondary-soft bg-canvas">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Name</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Client</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Agent</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Created</th>
-                <th className="px-4 py-3" />
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EXP</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EQF</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">TU</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Round</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Last Activity</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-secondary-soft">
-              {clients.map(c => (
-                <tr key={c.id} className="hover:bg-canvas transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink">
-                    {c.firstName} {c.lastName}
-                  </td>
-                  <td className="px-4 py-3 text-muted">{c.email ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={c.status} />
-                  </td>
-                  <td className="px-4 py-3 text-muted">{c.assignedAgent?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted">
-                    {new Date(c.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/clients/${c.id}`}
-                      className="text-primary hover:text-primary-dark text-xs font-medium"
-                    >
-                      View →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {clients.map(c => {
+                const report = reportMap.get(c.id)
+                const dispute = disputeMap.get(c.id)
+                const isSent = dispute?.items.some(i => i.sentAt)
+                const lastActivity = dispute?.createdAt ?? new Date(c.createdAt)
+                const daysSince = Math.floor((Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24))
+
+                return (
+                  <tr key={c.id} className="hover:bg-canvas transition-colors cursor-pointer group">
+                    <td className="px-4 py-3">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <p className="font-medium text-ink group-hover:text-primary transition-colors">
+                          {c.firstName} {c.lastName}
+                        </p>
+                        <p className="text-xs text-muted mt-0.5">{c.email ?? c.phone ?? "—"}</p>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <StatusBadge status={c.status} />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        {c.assignedAgent?.name ?? "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <ScorePill score={report?.scoreExperian} />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <ScorePill score={report?.scoreEquifax} />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <ScorePill score={report?.scoreTransunion} />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        {dispute ? (
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            isSent ? "bg-primary/10 text-primary" : "bg-secondary-soft text-muted"
+                          }`}>
+                            Rd {dispute.round}
+                          </span>
+                        ) : (
+                          <span className="text-muted text-xs">—</span>
+                        )}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted text-xs">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        {daysSince === 0 ? "Today" : daysSince === 1 ? "Yesterday" : `${daysSince}d ago`}
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -180,9 +264,7 @@ export default async function ClientsPage({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-muted">
-            Page {page} of {totalPages}
-          </p>
+          <p className="text-sm text-muted">Page {page} of {totalPages}</p>
           <div className="flex gap-2">
             {page > 1 && (
               <a

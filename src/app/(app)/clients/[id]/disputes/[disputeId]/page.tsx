@@ -56,7 +56,7 @@ export default async function DisputeDetailPage({
     DISPUTE_STRATEGIES.find(s => s.value === dispute.strategy)?.label ?? dispute.strategy
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl space-y-6">
       {/* Breadcrumb */}
       <nav className="text-sm text-muted flex items-center gap-2">
         <Link href="/clients" className="hover:text-ink">Clients</Link>
@@ -69,19 +69,55 @@ export default async function DisputeDetailPage({
       </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-ink">Round {dispute.round} — {strategyLabel}</h1>
-          <p className="text-sm text-muted mt-0.5">
-            Created {dispute.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-            {" · "}{dispute.items.length} items · {dispute.letters.length} letters
-          </p>
+      <div className="bg-white rounded-xl border border-secondary-soft p-6">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <span className="text-sm font-bold text-primary">{dispute.round}</span>
+              </div>
+              <h1 className="text-2xl font-bold text-ink">Round {dispute.round}</h1>
+            </div>
+            <p className="text-sm text-muted">
+              {strategyLabel} · Created {dispute.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              {" · "}{dispute.items.length} items · {dispute.letters.length} letters
+            </p>
+          </div>
+          {!isSent && dispute.letters.length > 0 && (
+            <MarkSentButton disputeId={dispute.id} />
+          )}
         </div>
-        {!isSent && <MarkSentButton disputeId={dispute.id} />}
+
+        {/* Next action prompt */}
+        {!isSent && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft">
+            {dispute.letters.length === 0 ? (
+              <p className="text-sm text-warning">No letters generated yet. Go back and run the dispute wizard.</p>
+            ) : (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-ink">Next step: Print &amp; mail letters</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    Download each letter, print, send via certified mail, then click &quot;Mark as Sent&quot; to start the FCRA 30-day clock.
+                  </p>
+                </div>
+                <MarkSentButton disputeId={dispute.id} />
+              </div>
+            )}
+          </div>
+        )}
+        {isSent && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft">
+            <p className="text-sm font-medium text-ink">Next step: Record outcomes as responses arrive</p>
+            <p className="text-xs text-muted mt-0.5">
+              Use the outcome dropdowns below to record bureau responses. FCRA requires response within 30 days of receipt.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* FCRA Clock */}
-      <div className={`border rounded-lg p-4 flex items-center gap-4 ${
+      <div className={`border rounded-xl p-5 flex items-center gap-4 ${
         !isSent ? "border-secondary-soft bg-secondary-soft/20" :
         firstDueAt && isOverdue(firstDueAt, now) ? "border-danger/30 bg-danger/5" :
         "border-success/30 bg-success/5"
@@ -111,8 +147,8 @@ export default async function DisputeDetailPage({
       </div>
 
       {/* Dispute items */}
-      <div className="border border-secondary-soft rounded-lg overflow-hidden">
-        <div className="bg-secondary-soft/30 px-4 py-3">
+      <div className="bg-white border border-secondary-soft rounded-xl overflow-hidden">
+        <div className="bg-secondary-soft/30 px-5 py-3 border-b border-secondary-soft">
           <h2 className="font-semibold text-ink">Disputed Items</h2>
         </div>
         <table className="min-w-full text-sm">
@@ -166,8 +202,8 @@ export default async function DisputeDetailPage({
       </div>
 
       {/* Letters */}
-      <div className="border border-secondary-soft rounded-lg overflow-hidden">
-        <div className="bg-secondary-soft/30 px-4 py-3">
+      <div className="bg-white border border-secondary-soft rounded-xl overflow-hidden">
+        <div className="bg-secondary-soft/30 px-5 py-3 border-b border-secondary-soft">
           <h2 className="font-semibold text-ink">Generated Letters</h2>
         </div>
         {dispute.letters.length === 0 ? (
@@ -204,3 +240,4 @@ export default async function DisputeDetailPage({
     </div>
   )
 }
+

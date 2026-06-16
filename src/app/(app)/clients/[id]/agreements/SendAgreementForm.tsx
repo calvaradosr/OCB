@@ -23,8 +23,8 @@ export default function SendAgreementForm({
   agentName: string
 }) {
   const [type, setType] = useState<AgreementType>("CLIENT_AGREEMENT")
-  const [setupFee, setSetupFee] = useState("19900")
-  const [monthlyFee, setMonthlyFee] = useState("9900")
+  const [setupFee, setSetupFee] = useState("199.00")
+  const [monthlyFee, setMonthlyFee] = useState("99.00")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -40,8 +40,8 @@ export default function SendAgreementForm({
         agentName,
         companyName: "One Consulting Business",
         startDate: new Date().toLocaleDateString(),
-        setupFeeCents: parseInt(setupFee, 10),
-        monthlyFeeCents: parseInt(monthlyFee, 10),
+        setupFeeCents: Math.round(parseFloat(setupFee) * 100),
+        monthlyFeeCents: Math.round(parseFloat(monthlyFee) * 100),
       })
       if ("error" in res) { setError(res.error); return }
       setSuccess("Agreement sent to client portal.")
@@ -68,22 +68,32 @@ export default function SendAgreementForm({
         {type === "CLIENT_AGREEMENT" && (
           <>
             <div>
-              <label className="block text-xs text-muted mb-1">Setup fee (cents)</label>
-              <input
-                type="number"
-                value={setupFee}
-                onChange={e => setSetupFee(e.target.value)}
-                className="w-full rounded-lg border border-secondary-soft px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <label className="block text-xs text-muted mb-1">Setup fee ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={setupFee}
+                  onChange={e => setSetupFee(e.target.value)}
+                  className="w-full rounded-lg border border-secondary-soft pl-7 pr-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Monthly fee (cents)</label>
-              <input
-                type="number"
-                value={monthlyFee}
-                onChange={e => setMonthlyFee(e.target.value)}
-                className="w-full rounded-lg border border-secondary-soft px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <label className="block text-xs text-muted mb-1">Monthly fee ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={monthlyFee}
+                  onChange={e => setMonthlyFee(e.target.value)}
+                  className="w-full rounded-lg border border-secondary-soft pl-7 pr-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
             </div>
           </>
         )}

@@ -4,26 +4,52 @@ import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
 import Link from "next/link"
 
-function kpi(label: string, value: string, sub?: string, color?: string) {
-  return { label, value, sub, color }
+function KPI({ label, value, sub, accent, warn }: {
+  label: string; value: string; sub?: string; accent?: string; warn?: boolean
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-secondary-soft p-5">
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`text-2xl font-semibold mt-1 ${accent ?? (warn ? "text-warning" : "text-ink")}`}>{value}</p>
+      {sub && <p className={`text-xs mt-0.5 ${warn ? "text-warning" : "text-muted"}`}>{sub}</p>}
+    </div>
+  )
+}
+
+function SubsystemCard({ href, title, description, stats }: {
+  href: string; title: string; description: string; stats: { label: string; value: string }[]
+}) {
+  return (
+    <Link href={href} className="block bg-white rounded-xl border border-secondary-soft p-5 hover:border-primary/40 hover:shadow-sm transition-all">
+      <p className="text-sm font-semibold text-ink">{title}</p>
+      <p className="text-xs text-muted mt-0.5 mb-4">{description}</p>
+      <div className="flex gap-4">
+        {stats.map(s => (
+          <div key={s.label}>
+            <p className="text-lg font-semibold text-ink">{s.value}</p>
+            <p className="text-xs text-muted">{s.label}</p>
+          </div>
+        ))}
+      </div>
+    </Link>
+  )
 }
 
 export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect("/login")
-
-  // Affiliate role goes to their own portal
   if (session.user.role === "AFFILIATE") redirect("/affiliate-portal")
 
   const canBilling = can(session.user.role, "billing:read")
   const canDisputes = can(session.user.role, "disputes:read")
   const canClients = can(session.user.role, "clients:read")
+  const canLoans = can(session.user.role, "loans:read")
+  const canTradelines = can(session.user.role, "tradelines:read")
 
   const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  // ── Client stats ─────────────────────────────────────────────────────────────
+  // Client stats
   const [totalClients, activeClients, leadsThisMonth] = canClients
     ? await Promise.all([
         db.client.count(),
@@ -32,57 +58,63 @@ export default async function DashboardPage() {
       ])
     : [null, null, null]
 
-  // ── Dispute stats ─────────────────────────────────────────────────────────────
-  const [totalItems, deletedItems, openDisputes] = canDisputes
+  // Dispute stats
+  const [openDisputes, deletedItems, totalResolvedItems, overdueDisputes, pendingLetters] = canDisputes
     ? await Promise.all([
-        db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
-        db.disputeItem.count({ where: { outcome: "DELETED" } }),
         db.disputeItem.count({ where: { outcome: "PENDING" } }),
+        db.disputeItem.count({ where: { outcome: "DELETED" } }),
+        db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
+        db.disputeItem.count({ where: { outcome: "PENDING", dueAt: { lt: now } } }),
+        db.letter.count({ where: { sentAt: null } }),
       ])
-    : [null, null, null]
+    : [null, null, null, null, null]
 
-  const deletionRate = totalItems && totalItems > 0
-    ? Math.round((deletedItems! / totalItems) * 100)
+  const deletionRate = totalResolvedItems && totalResolvedItems > 0
+    ? Math.round((deletedItems! / totalResolvedItems) * 100)
     : null
 
-  // ── Revenue stats ─────────────────────────────────────────────────────────────
-  const [collectedThisMonth, overdueCount, activeSubscriptions] = canBilling
+  // Billing stats
+  const [collectedThisMonth, activeSubscriptions, failedInvoices] = canBilling
     ? await Promise.all([
         db.invoice.aggregate({
           _sum: { amountCents: true },
           where: { status: "PAID", createdAt: { gte: startOfMonth } },
         }).then(r => r._sum.amountCents ?? 0),
-        db.invoice.count({ where: { status: "FAILED" } }),
         db.subscription.count({ where: { status: { in: ["active", "trialing"] } } }),
+        db.invoice.count({ where: { status: "FAILED" } }),
       ])
     : [null, null, null]
 
-  // ── Agent productivity ────────────────────────────────────────────────────────
+  // Loan stats
+  const [activeLoanFiles, fundedThisMonth] = canLoans
+    ? await Promise.all([
+        db.loanFile.count({ where: { status: { notIn: ["FUNDED", "DECLINED", "WITHDRAWN"] } } }),
+        db.loanFile.count({ where: { status: "FUNDED", statusChangedAt: { gte: startOfMonth } } }),
+      ])
+    : [null, null]
+
+  // Tradeline stats
+  const [availableTradelines, activeOrders] = canTradelines
+    ? await Promise.all([
+        db.tradeline.count({ where: { active: true, availableAuSpots: { gt: 0 } } }),
+        db.tradelineOrder.count({ where: { status: { in: ["INFO_SENT_TO_VENDOR", "POSTED"] } } }),
+      ])
+    : [null, null]
+
+  // Agent productivity
   const agentStats = canClients
     ? await db.user.findMany({
         where: { role: { in: ["AGENT", "MANAGER"] }, active: true },
-        include: {
-          clients: {
-            select: { status: true },
-            where: { status: "ACTIVE" },
-          },
-        },
+        include: { clients: { select: { status: true }, where: { status: "ACTIVE" } } },
       })
     : []
 
-  // ── Overdues FCRA ─────────────────────────────────────────────────────────────
-  const overdueDisputes = canDisputes
-    ? await db.disputeItem.count({
-        where: {
-          outcome: "PENDING",
-          dueAt: { lt: now },
-        },
-      })
-    : null
-
-  // ── Recent activity ───────────────────────────────────────────────────────────
+  // Recent activity
   const recentActivity = await db.auditLog.findMany({
-    where: { action: { in: ["CREATE", "UPDATE"] }, entity: { in: ["Client", "DisputeItem", "Invoice", "LoanFile", "TradelineOrder"] } },
+    where: {
+      action: { in: ["CREATE", "UPDATE"] },
+      entity: { in: ["Client", "DisputeItem", "Invoice", "LoanFile", "TradelineOrder"] },
+    },
     include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 10,
@@ -92,36 +124,73 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-ink">Dashboard</h1>
-        <p className="text-sm text-muted mt-1">{now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+        <p className="text-sm text-muted mt-1">
+          {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+        </p>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Top KPIs — always 4 columns */}
+      <div className="grid grid-cols-4 gap-4">
         {canClients && (
-          <>
-            <KPICard label="Active clients" value={String(activeClients ?? "—")} sub={`${leadsThisMonth ?? 0} new this month`} />
-            <KPICard label="Total clients" value={String(totalClients ?? "—")} />
-          </>
+          <KPI label="Active clients" value={String(activeClients ?? "—")} sub={`${leadsThisMonth ?? 0} new this month`} />
         )}
         {canDisputes && (
-          <>
-            <KPICard label="Deletion rate" value={deletionRate != null ? `${deletionRate}%` : "—"} sub={`${deletedItems ?? 0} / ${totalItems ?? 0} items`} color="text-success" />
-            <KPICard label="Open disputes" value={String(openDisputes ?? "—")} sub={overdueDisputes ? `${overdueDisputes} overdue` : undefined} warningIf={!!overdueDisputes} />
-          </>
+          <KPI label="Deletion rate" value={deletionRate != null ? `${deletionRate}%` : "—"} sub={`${deletedItems ?? 0} / ${totalResolvedItems ?? 0} resolved`} accent="text-success" />
         )}
         {canBilling && (
-          <>
-            <KPICard label="Collected this month" value={`$${(((collectedThisMonth as number) ?? 0) / 100).toLocaleString()}`} color="text-success" />
-            <KPICard label="Active subscriptions" value={String(activeSubscriptions ?? "—")} />
-            <KPICard label="Failed invoices" value={String(overdueCount ?? "—")} warningIf={!!overdueCount} />
-          </>
+          <KPI label="Revenue this month" value={`$${(((collectedThisMonth as number) ?? 0) / 100).toLocaleString()}`} accent="text-success" sub={`${activeSubscriptions ?? 0} active subs`} />
+        )}
+        {canDisputes && (
+          <KPI label="FCRA overdue" value={String(overdueDisputes ?? "—")} warn={!!overdueDisputes} sub={overdueDisputes ? "Needs action" : "All on track"} />
         )}
       </div>
 
+      {/* Subsystem cards */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Modules</h2>
+        <div className="grid grid-cols-3 gap-4">
+          {canDisputes && (
+            <SubsystemCard
+              href="/disputes"
+              title="Credit Repair"
+              description="Disputes, letters &amp; FCRA tracking"
+              stats={[
+                { label: "open disputes", value: String(openDisputes ?? "—") },
+                { label: "letters pending", value: String(pendingLetters ?? "—") },
+                { label: "deletion rate", value: deletionRate != null ? `${deletionRate}%` : "—" },
+              ]}
+            />
+          )}
+          {canLoans && (
+            <SubsystemCard
+              href="/loans"
+              title="Loan Processing"
+              description="Pipeline management &amp; lender submissions"
+              stats={[
+                { label: "active files", value: String(activeLoanFiles ?? "—") },
+                { label: "funded this month", value: String(fundedThisMonth ?? "—") },
+              ]}
+            />
+          )}
+          {canTradelines && (
+            <SubsystemCard
+              href="/tradelines"
+              title="Tradelines"
+              description="Inventory &amp; authorized user orders"
+              stats={[
+                { label: "available", value: String(availableTradelines ?? "—") },
+                { label: "active orders", value: String(activeOrders ?? "—") },
+              ]}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Bottom row */}
       <div className="grid grid-cols-3 gap-6">
-        {/* Agent productivity */}
+        {/* Agent load */}
         {canClients && agentStats.length > 0 && (
-          <div className="col-span-1 bg-white rounded-xl border border-secondary-soft overflow-hidden">
+          <div className="bg-white rounded-xl border border-secondary-soft overflow-hidden">
             <div className="px-5 py-4 border-b border-secondary-soft">
               <h2 className="text-sm font-semibold text-ink">Agent load</h2>
             </div>
@@ -137,8 +206,8 @@ export default async function DashboardPage() {
         )}
 
         {/* Recent activity */}
-        <div className="col-span-2 bg-white rounded-xl border border-secondary-soft overflow-hidden">
-          <div className="px-5 py-4 border-b border-secondary-soft flex items-center justify-between">
+        <div className={`${canClients && agentStats.length > 0 ? "col-span-2" : "col-span-3"} bg-white rounded-xl border border-secondary-soft overflow-hidden`}>
+          <div className="px-5 py-4 border-b border-secondary-soft">
             <h2 className="text-sm font-semibold text-ink">Recent activity</h2>
           </div>
           {recentActivity.length === 0 ? (
@@ -151,7 +220,9 @@ export default async function DashboardPage() {
                     <span className="text-xs font-medium text-ink">{log.action} {log.entity}</span>
                     {log.actor && <span className="text-xs text-muted ml-2">by {log.actor.name}</span>}
                   </div>
-                  <span className="text-xs text-muted">{new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="text-xs text-muted">
+                    {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
                 </div>
               ))}
             </div>
@@ -159,41 +230,23 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Quick links */}
+      {/* Quick actions */}
       <div className="grid grid-cols-4 gap-3">
         {[
           { href: "/clients/new", label: "+ New client" },
-          { href: "/loans/new", label: "+ New loan" },
+          { href: "/loans/new", label: "+ New loan file" },
           { href: "/tradelines/new", label: "+ Add tradeline" },
           { href: "/automations/new", label: "+ New automation" },
         ].map(({ href, label }) => (
-          <Link key={href} href={href} className="bg-white rounded-xl border border-secondary-soft p-4 text-sm text-muted hover:text-ink hover:border-primary/30 transition-colors text-center">
+          <Link
+            key={href}
+            href={href}
+            className="bg-white rounded-xl border border-secondary-soft p-4 text-sm text-muted hover:text-ink hover:border-primary/30 transition-colors text-center"
+          >
             {label}
           </Link>
         ))}
       </div>
-    </div>
-  )
-}
-
-function KPICard({
-  label,
-  value,
-  sub,
-  color,
-  warningIf,
-}: {
-  label: string
-  value: string
-  sub?: string
-  color?: string
-  warningIf?: boolean
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-secondary-soft p-5">
-      <p className="text-xs text-muted">{label}</p>
-      <p className={`text-2xl font-semibold mt-1 ${color ?? (warningIf ? "text-warning" : "text-ink")}`}>{value}</p>
-      {sub && <p className={`text-xs mt-0.5 ${warningIf ? "text-warning" : "text-muted"}`}>{sub}</p>}
     </div>
   )
 }

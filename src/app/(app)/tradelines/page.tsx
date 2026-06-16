@@ -28,11 +28,17 @@ export default async function TradelinesPage() {
   const full = tradelines.filter(t => t.active && t.availableAuSpots === 0)
   const inactive = tradelines.filter(t => !t.active)
 
+  const totalAvailableSpots = available.reduce((s, t) => s + t.availableAuSpots, 0)
+  const totalRetailValueCents = tradelines
+    .filter(t => t.active)
+    .reduce((s, t) => s + t.retailPriceCents * t.availableAuSpots, 0)
+  const activeOrders = tradelines.reduce((s, t) => s + t.orders.length, 0)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Tradeline Inventory</h1>
+          <h1 className="text-2xl font-semibold text-ink">Tradelines</h1>
           <p className="text-muted text-sm mt-1">
             {available.length} available · {full.length} full · {inactive.length} inactive
           </p>
@@ -48,6 +54,35 @@ export default async function TradelinesPage() {
           )}
         </div>
       </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Available spots</p>
+          <p className="text-2xl font-semibold text-ink mt-1">{totalAvailableSpots}</p>
+          <p className="text-xs text-muted mt-0.5">across {available.length} tradelines</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Inventory retail value</p>
+          <p className="text-2xl font-semibold text-ink mt-1">
+            {totalRetailValueCents > 0 ? `$${(totalRetailValueCents / 100).toLocaleString()}` : "—"}
+          </p>
+          <p className="text-xs text-muted mt-0.5">available spots only</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Active orders</p>
+          <p className="text-2xl font-semibold text-ink mt-1">{activeOrders}</p>
+          <p className="text-xs text-muted mt-0.5">in progress</p>
+        </div>
+        <div className="bg-white rounded-xl border border-secondary-soft p-5">
+          <p className="text-xs text-muted">Total tradelines</p>
+          <p className="text-2xl font-semibold text-ink mt-1">{tradelines.filter(t => t.active).length}</p>
+          <p className="text-xs text-muted mt-0.5">{inactive.length} inactive</p>
+        </div>
+      </div>
+
+      {/* Inventory table label */}
+      <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Inventory</h2>
 
       {tradelines.length === 0 ? (
         <div className="bg-white rounded-xl border border-secondary-soft p-12 text-center">

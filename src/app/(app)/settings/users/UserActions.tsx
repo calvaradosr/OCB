@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { updateStaffUser, resetUserMfa, resetUserPassword } from "@/app/actions/users"
+import { updateStaffUser, resetUserPassword } from "@/app/actions/users"
 import type { Role } from "@/lib/rbac"
 
 const STAFF_ROLES: { value: Role; label: string }[] = [
@@ -40,27 +40,6 @@ export function ToggleActiveButton({ userId, active }: { userId: string; active:
   return (
     <button onClick={toggle} disabled={pending} className={`text-xs hover:underline disabled:opacity-50 ${active ? "text-danger" : "text-success"}`}>
       {pending ? "…" : active ? "Deactivate" : "Reactivate"}
-    </button>
-  )
-}
-
-export function ResetMfaButton({ userId }: { userId: string }) {
-  const [pending, startTransition] = useTransition()
-  const [done, setDone] = useState(false)
-
-  function reset() {
-    if (!confirm("Reset MFA for this user? They will need to set it up again on next login.")) return
-    startTransition(async () => {
-      await resetUserMfa(userId)
-      setDone(true)
-    })
-  }
-
-  if (done) return <span className="text-xs text-success">MFA reset</span>
-
-  return (
-    <button onClick={reset} disabled={pending} className="text-xs text-muted hover:text-warning disabled:opacity-50">
-      {pending ? "…" : "Reset MFA"}
     </button>
   )
 }

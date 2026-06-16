@@ -5,8 +5,6 @@ import "next-auth/jwt"
 declare module "next-auth" {
   interface User {
     role: Role
-    mfaEnabled: boolean
-    mfaVerified: boolean
   }
 
   interface Session {
@@ -16,8 +14,6 @@ declare module "next-auth" {
       email?: string | null
       image?: string | null
       role: Role
-      mfaEnabled: boolean
-      mfaVerified: boolean
     }
   }
 }
@@ -26,7 +22,5 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string
     role?: Role
-    mfaEnabled?: boolean
-    mfaVerified?: boolean
   }
 }
