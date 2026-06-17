@@ -63,7 +63,7 @@ export default async function AffiliatePortalPage() {
           <code className="flex-1 text-xs bg-secondary-soft rounded-lg px-3 py-2 text-muted overflow-x-auto">{signupLink}</code>
           <span className="text-xs bg-secondary-soft px-2 py-1 rounded font-mono">{affiliate.code}</span>
         </div>
-        <p className="text-xs text-muted mt-2">Share this link — when a client signs up using it, they'll be attributed to your account at {affiliate.commissionPct}% commission.</p>
+        <p className="text-xs text-muted mt-2">Share this link — when a client signs up using it, they&apos;ll be attributed to your account at {affiliate.commissionPct}% commission.</p>
       </div>
 
       {/* Referrals table */}

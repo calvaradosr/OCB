@@ -99,7 +99,7 @@ export default async function ClientTradelinesPage({
           <div className="px-5 py-10 text-center">
             <p className="text-muted text-sm">No active tradeline orders.</p>
             {canWrite && (
-              <p className="text-xs text-muted mt-1">Use the "Assign Tradeline" button to add AU spots for this client.</p>
+              <p className="text-xs text-muted mt-1">Use the &quot;Assign Tradeline&quot; button to add AU spots for this client.</p>
             )}
           </div>
         ) : (
