@@ -3,7 +3,8 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
 import { StatusBadge } from "@/components/StatusBadge"
-import { CLIENT_STATUSES, STATUS_LABELS } from "@/lib/client-utils"
+import { CLIENT_STATUSES, STATUS_LABELS, type ClientStatus } from "@/lib/client-utils"
+import KanbanBoard from "./KanbanBoard"
 
 const PAGE_SIZE = 25
 
@@ -20,12 +21,13 @@ function ScorePill({ score }: { score: number | null | undefined }) {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string }>
+  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string; view?: string }>
 }) {
   const session = (await auth())!
   const { orgId } = session.user
-  const { q, status, agent, page: pageStr } = await searchParams
+  const { q, status, agent, page: pageStr, view } = await searchParams
   const page = Math.max(1, parseInt(pageStr ?? "1", 10))
+  const isKanban = view === "kanban"
 
   const where = {
     orgId,
@@ -100,6 +102,89 @@ export default async function ClientsPage({
   const reportMap = new Map(latestReports.map(r => [r.clientId, r]))
   const disputeMap = new Map(latestDisputes.map(d => [d.clientId, d]))
 
+  // Kanban view — fetch all clients (no pagination) for drag-drop pipeline
+  if (isKanban) {
+    const allClients = await db.client.findMany({
+      where: { orgId },
+      include: { assignedAgent: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    })
+    const allIds = allClients.map(c => c.id)
+    const [kanbanReports, kanbanDisputes] = await Promise.all([
+      db.creditReport.findMany({
+        where: { clientId: { in: allIds } },
+        orderBy: { pulledAt: "desc" },
+        distinct: ["clientId"],
+        select: { clientId: true, scoreExperian: true, scoreEquifax: true, scoreTransunion: true },
+      }),
+      db.dispute.findMany({
+        where: { clientId: { in: allIds } },
+        orderBy: { createdAt: "desc" },
+        distinct: ["clientId"],
+        select: { clientId: true, createdAt: true },
+      }),
+    ])
+    const krMap = new Map(kanbanReports.map(r => [r.clientId, r]))
+    const kdMap = new Map(kanbanDisputes.map(d => [d.clientId, d]))
+
+    const kanbanClients = allClients.map(c => {
+      const r = krMap.get(c.id)
+      const bestScore = r
+        ? Math.max(r.scoreExperian ?? 0, r.scoreEquifax ?? 0, r.scoreTransunion ?? 0) || null
+        : null
+      const lastActivity = kdMap.get(c.id)?.createdAt ?? new Date(c.createdAt)
+      const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+      return {
+        id: c.id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        email: c.email,
+        phone: c.phone,
+        status: c.status as ClientStatus,
+        createdAt: c.createdAt,
+        assignedAgent: c.assignedAgent,
+        bestScore,
+        daysSinceActivity,
+      }
+    })
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-ink">Clients</h1>
+            <p className="text-sm text-muted">{allClients.length} total</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg border border-secondary-soft overflow-hidden text-sm">
+              <a
+                href="/clients"
+                className="px-3 py-1.5 text-muted hover:text-ink hover:bg-canvas transition-colors"
+              >
+                ☰ List
+              </a>
+              <a
+                href="/clients?view=kanban"
+                className="px-3 py-1.5 bg-primary text-white font-medium"
+              >
+                ⊞ Pipeline
+              </a>
+            </div>
+            {canWrite && (
+              <Link
+                href="/clients/new"
+                className="rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-medium px-4 py-2 transition-colors"
+              >
+                + New client
+              </Link>
+            )}
+          </div>
+        </div>
+        <KanbanBoard clients={kanbanClients} canWrite={canWrite} />
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Header */}
@@ -108,7 +193,21 @@ export default async function ClientsPage({
           <h1 className="text-2xl font-semibold text-ink">Clients</h1>
           <p className="text-sm text-muted">{total} total</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-secondary-soft overflow-hidden text-sm">
+            <a
+              href="/clients"
+              className="px-3 py-1.5 bg-secondary-soft text-ink font-medium"
+            >
+              ☰ List
+            </a>
+            <a
+              href="/clients?view=kanban"
+              className="px-3 py-1.5 text-muted hover:text-ink hover:bg-canvas transition-colors"
+            >
+              ⊞ Pipeline
+            </a>
+          </div>
           <a
             href="/api/clients/export"
             className="rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"

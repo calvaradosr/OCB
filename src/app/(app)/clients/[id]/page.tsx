@@ -12,6 +12,7 @@ import { isCreditReady, CREDIT_READINESS_THRESHOLD } from "@/lib/loan-utils"
 import { AddNoteForm } from "./AddNoteForm"
 import { StatusChanger } from "./StatusChanger"
 import { clockLabel, isOverdue } from "@/lib/fcra"
+import { ScoreChart } from "@/components/ScoreChart"
 
 function ScoreCard({ label, score }: { label: string; score: number | null | undefined }) {
   const color = !score ? "text-muted" : score >= 740 ? "text-success" : score >= 670 ? "text-primary" : score >= 580 ? "text-warning" : "text-danger"
@@ -89,13 +90,20 @@ export default async function ClientProfilePage({
   const isCR = client.modules.includes("CREDIT_REPAIR")
 
   // Credit Repair data
-  const latestReport = isCR
-    ? await db.creditReport.findFirst({
-        where: { clientId: id },
-        orderBy: { pulledAt: "desc" },
-        include: { _count: { select: { items: true } } },
-      })
-    : null
+  const [latestReport, scoreHistory] = isCR
+    ? await Promise.all([
+        db.creditReport.findFirst({
+          where: { clientId: id },
+          orderBy: { pulledAt: "desc" },
+          include: { _count: { select: { items: true } } },
+        }),
+        db.creditReport.findMany({
+          where: { clientId: id },
+          select: { pulledAt: true, scoreExperian: true, scoreEquifax: true, scoreTransunion: true },
+          orderBy: { pulledAt: "asc" },
+        }),
+      ])
+    : [null, []]
 
   const itemStats = isCR
     ? await db.reportItem.aggregate({
@@ -260,6 +268,14 @@ export default async function ClientProfilePage({
             <ScoreCard label="Equifax" score={latestReport?.scoreEquifax} />
             <ScoreCard label="TransUnion" score={latestReport?.scoreTransunion} />
           </div>
+
+          {/* Score history chart */}
+          {scoreHistory.length > 0 && (
+            <div className="bg-white rounded-xl border border-secondary-soft p-5">
+              <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-3">Score History</p>
+              <ScoreChart reports={scoreHistory} />
+            </div>
+          )}
 
           {/* Workflow progress */}
           <div className="bg-white rounded-xl border border-secondary-soft p-5">
