@@ -182,7 +182,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
             </svg>
           </div>
           <p className="font-semibold text-ink mb-1">No credit reports yet</p>
-          <p className="text-sm text-muted mb-4">Import the client's credit report to start the dispute workflow.</p>
+          <p className="text-sm text-muted mb-4">Import the client&apos;s credit report to start the dispute workflow.</p>
           <Link
             href={`/clients/${id}/reports/import`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"

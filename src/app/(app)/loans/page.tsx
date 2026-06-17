@@ -127,6 +127,14 @@ export default async function LoansPage({
               My Queue {openConditions > 0 ? `(${openConditions} cond.)` : ""}
             </Link>
           )}
+          {!clientId && !isMyQueue && (
+            <Link
+              href="/loans/funded"
+              className="px-4 py-2 rounded-lg border border-secondary-soft text-sm text-muted hover:text-ink transition-colors"
+            >
+              Funding Ledger
+            </Link>
+          )}
           {canWrite && !clientId && (
             <Link
               href="/loans/new"
@@ -253,7 +261,14 @@ export default async function LoansPage({
                       <p className="text-sm font-medium text-ink truncate">
                         {f.client.firstName} {f.client.lastName}
                       </p>
-                      <p className="text-xs text-muted mt-0.5">{LOAN_TYPE_LABELS[f.type]}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <p className="text-xs text-muted">{LOAN_TYPE_LABELS[f.type]}</p>
+                        {f.creditScoreAtConversion && (
+                          <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full font-medium">
+                            CR Bridge ↗
+                          </span>
+                        )}
+                      </div>
                       {f.amountRequestedCents && (
                         <p className="text-xs font-semibold text-primary mt-1">
                           {dollars(f.amountRequestedCents)}

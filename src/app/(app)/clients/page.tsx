@@ -198,6 +198,8 @@ export default async function ClientsPage({
                 const dispute = disputeMap.get(c.id)
                 const isSent = dispute?.items.some(i => i.sentAt)
                 const lastActivity = dispute?.createdAt ?? new Date(c.createdAt)
+                // Server component: rendered once per request, so reading the clock here is safe.
+                // eslint-disable-next-line react-hooks/purity
                 const daysSince = Math.floor((Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24))
 
                 return (

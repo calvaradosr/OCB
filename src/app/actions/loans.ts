@@ -5,7 +5,13 @@ import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
 import { writeAuditLog } from "@/lib/audit"
 import { LoanStatus, LoanType } from "@prisma/client"
-import { canTransition } from "@/lib/loan-utils"
+import {
+  canTransition,
+  isCreditReady,
+  CREDIT_READINESS_THRESHOLD,
+  LOAN_DOC_CHECKLIST,
+  LOAN_DOC_LABELS,
+} from "@/lib/loan-utils"
 import { buildS3Key, getPresignedPutUrl } from "@/lib/s3"
 import { revalidatePath } from "next/cache"
 
@@ -131,6 +137,33 @@ export async function updateLoanStatus(
     entityId: loanFileId,
     detail: { from: file.status, to: newStatus },
   })
+
+  // Auto-send doc reminder when entering Docs Collection stage
+  if (newStatus === "DOCS_COLLECTION") {
+    const full = await db.loanFile.findUnique({
+      where: { id: loanFileId },
+      include: {
+        client: { select: { id: true, portalUserId: true } },
+        documents: { select: { category: true } },
+      },
+    })
+    if (full?.client.portalUserId) {
+      const required = LOAN_DOC_CHECKLIST[full.type]
+      const uploaded = new Set(full.documents.map(d => d.category))
+      const missing = required.filter(cat => !uploaded.has(cat))
+      if (missing.length > 0) {
+        const docList = missing.map(cat => `• ${LOAN_DOC_LABELS[cat] ?? cat}`).join("\n")
+        await db.message.create({
+          data: {
+            clientId: full.client.id,
+            senderRole: session.user.role,
+            senderId: session.user.id,
+            body: `Your loan file is now in the document collection stage. Please upload the following documents through your portal:\n\n${docList}\n\nContact us with any questions.`,
+          },
+        }).catch(() => {})
+      }
+    }
+  }
 
   revalidatePath(`/loans/${loanFileId}`)
   revalidatePath("/loans")
@@ -265,6 +298,50 @@ export async function createLender(opts: {
 
   revalidatePath("/lenders")
   return { id: lender.id }
+}
+
+// ─── Credit-readiness bridge ─────────────────────────────────────────────────
+// Called after every report import. If the client just crossed the score
+// threshold and has no existing loan files, auto-creates an INTAKE loan file.
+export async function autoCreateLoanLead(
+  clientId: string,
+  scores: { experian: number | null; equifax: number | null; transunion: number | null }
+): Promise<void> {
+  if (!isCreditReady(scores)) return
+
+  const existing = await db.loanFile.count({ where: { clientId } })
+  if (existing > 0) return
+
+  const client = await db.client.findUnique({
+    where: { id: clientId },
+    select: { orgId: true, modules: true },
+  })
+  if (!client) return
+
+  const minScore = Math.min(
+    ...[scores.experian, scores.equifax, scores.transunion].filter((s): s is number => s != null)
+  )
+
+  await db.loanFile.create({
+    data: {
+      clientId,
+      orgId: client.orgId,
+      type: "PERSONAL",
+      status: "INTAKE",
+      creditScoreAtConversion: minScore,
+      notes: `Auto-created by credit-readiness bridge — all bureau scores reached ${CREDIT_READINESS_THRESHOLD}+. Review and update loan type before advancing.`,
+    },
+  })
+
+  if (!client.modules.includes("LOAN")) {
+    await db.client.update({
+      where: { id: clientId },
+      data: { modules: { push: "LOAN" } },
+    })
+  }
+
+  revalidatePath("/loans")
+  revalidatePath(`/clients/${clientId}`)
 }
 
 export async function updateLender(

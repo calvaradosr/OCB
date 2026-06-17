@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac"
 import { writeAuditLog } from "@/lib/audit"
 import { AUTO_FLAG_TYPES } from "@/lib/report-utils"
 import { verifyPostingForClient } from "@/app/actions/tradelines"
+import { autoCreateLoanLead } from "@/app/actions/loans"
 import { runAutomations } from "@/lib/automation"
 
 export type ImportedItem = {
@@ -77,6 +78,12 @@ export async function importReport(
 
   // Auto-check tradeline posting whenever a new report arrives (non-blocking)
   verifyPostingForClient(clientId, report.id).catch(() => {})
+  // Credit-readiness bridge: auto-create a loan lead if scores just crossed the threshold
+  autoCreateLoanLead(clientId, {
+    experian: toScore(data.scoreExperian),
+    equifax: toScore(data.scoreEquifax),
+    transunion: toScore(data.scoreTransunion),
+  }).catch(() => {})
   runAutomations({ trigger: "REPORT_IMPORTED", clientId, triggeredBy: report.id }).catch(() => {})
 
   return { reportId: report.id }
