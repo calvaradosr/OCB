@@ -41,6 +41,7 @@ export async function createClient(
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   if (!can(session.user.role, "clients:write")) return { error: "Unauthorized" }
+  const orgId = session.user.orgId
 
   const raw = Object.fromEntries(formData.entries())
   const parsed = clientSchema.safeParse(raw)
@@ -51,6 +52,7 @@ export async function createClient(
   const client = await db.client.create({
     data: {
       ...rest,
+      orgId,
       email: rest.email || undefined,
       status: isValidStatus(rest.status) ? rest.status : "LEAD",
       modules: parseModules(formData),
@@ -89,6 +91,7 @@ export async function updateClient(
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   if (!can(session.user.role, "clients:write")) return { error: "Unauthorized" }
+  const orgId = session.user.orgId
 
   const raw = Object.fromEntries(formData.entries())
   const parsed = clientSchema.safeParse(raw)
@@ -97,7 +100,7 @@ export async function updateClient(
   const { ssn, dob, assignedAgentId, ...rest } = parsed.data
 
   const updated = await db.client.update({
-    where: { id },
+    where: { id, orgId },
     data: {
       ...rest,
       email: rest.email || undefined,
@@ -126,7 +129,7 @@ export async function updateClientStatus(id: string, status: ClientStatus) {
   if (!can(session.user.role, "clients:write")) return { error: "Unauthorized" }
   if (!isValidStatus(status)) return { error: "Invalid status" }
 
-  await db.client.update({ where: { id }, data: { status } })
+  await db.client.update({ where: { id, orgId: session.user.orgId }, data: { status } })
 
   await writeAuditLog({
     actorId: session.user.id,

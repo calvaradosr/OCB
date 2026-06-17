@@ -32,14 +32,16 @@ export async function createAffiliate(opts: {
   const passwordHash = await hash(opts.password, 12)
   const code = nanoid(8).toUpperCase()
 
+  const orgId = session.user.orgId
   const user = await db.user.create({
     data: {
       name: opts.name.trim(),
       email: opts.email.trim().toLowerCase(),
       passwordHash,
       role: "AFFILIATE",
+      orgId,
       affiliate: {
-        create: { code, commissionPct: opts.commissionPct },
+        create: { code, commissionPct: opts.commissionPct, orgId },
       },
     },
   })

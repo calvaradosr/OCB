@@ -102,15 +102,6 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-5xl space-y-6">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-muted flex items-center gap-2">
-        <Link href="/clients" className="hover:text-ink">Clients</Link>
-        <span>›</span>
-        <Link href={`/clients/${id}`} className="hover:text-ink">{client.firstName} {client.lastName}</Link>
-        <span>›</span>
-        <span className="text-ink font-medium">Credit Reports</span>
-      </nav>
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-ink">Credit Reports</h1>

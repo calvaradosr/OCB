@@ -8,9 +8,10 @@ export default async function NewTradelinePage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "tradelines:write")) redirect("/tradelines")
+  const { orgId } = session.user
 
   const vendors = await db.tradelineVendor.findMany({
-    where: { active: true },
+    where: { orgId, active: true },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })

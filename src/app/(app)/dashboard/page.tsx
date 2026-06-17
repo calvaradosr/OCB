@@ -39,6 +39,7 @@ export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (session.user.role === "AFFILIATE") redirect("/affiliate-portal")
+  const { orgId } = session.user
 
   const canBilling = can(session.user.role, "billing:read")
   const canDisputes = can(session.user.role, "disputes:read")
@@ -52,9 +53,9 @@ export default async function DashboardPage() {
   // Client stats
   const [totalClients, activeClients, leadsThisMonth] = canClients
     ? await Promise.all([
-        db.client.count(),
-        db.client.count({ where: { status: "ACTIVE" } }),
-        db.client.count({ where: { createdAt: { gte: startOfMonth } } }),
+        db.client.count({ where: { orgId } }),
+        db.client.count({ where: { orgId, status: "ACTIVE" } }),
+        db.client.count({ where: { orgId, createdAt: { gte: startOfMonth } } }),
       ])
     : [null, null, null]
 
@@ -88,30 +89,31 @@ export default async function DashboardPage() {
   // Loan stats
   const [activeLoanFiles, fundedThisMonth] = canLoans
     ? await Promise.all([
-        db.loanFile.count({ where: { status: { notIn: ["FUNDED", "DECLINED", "WITHDRAWN"] } } }),
-        db.loanFile.count({ where: { status: "FUNDED", statusChangedAt: { gte: startOfMonth } } }),
+        db.loanFile.count({ where: { orgId, status: { notIn: ["FUNDED", "DECLINED", "WITHDRAWN"] } } }),
+        db.loanFile.count({ where: { orgId, status: "FUNDED", statusChangedAt: { gte: startOfMonth } } }),
       ])
     : [null, null]
 
   // Tradeline stats
   const [availableTradelines, activeOrders] = canTradelines
     ? await Promise.all([
-        db.tradeline.count({ where: { active: true, availableAuSpots: { gt: 0 } } }),
-        db.tradelineOrder.count({ where: { status: { in: ["INFO_SENT_TO_VENDOR", "POSTED"] } } }),
+        db.tradeline.count({ where: { orgId, active: true, availableAuSpots: { gt: 0 } } }),
+        db.tradelineOrder.count({ where: { orgId, status: { in: ["INFO_SENT_TO_VENDOR", "POSTED"] } } }),
       ])
     : [null, null]
 
   // Agent productivity
   const agentStats = canClients
     ? await db.user.findMany({
-        where: { role: { in: ["AGENT", "MANAGER"] }, active: true },
-        include: { clients: { select: { status: true }, where: { status: "ACTIVE" } } },
+        where: { orgId, role: { in: ["AGENT", "MANAGER"] }, active: true },
+        include: { clients: { select: { status: true }, where: { orgId, status: "ACTIVE" } } },
       })
     : []
 
   // Recent activity
   const recentActivity = await db.auditLog.findMany({
     where: {
+      orgId,
       action: { in: ["CREATE", "UPDATE"] },
       entity: { in: ["Client", "DisputeItem", "Invoice", "LoanFile", "TradelineOrder"] },
     },

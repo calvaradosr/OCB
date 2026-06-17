@@ -8,8 +8,10 @@ export default async function AffiliatesPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "clients:write")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const affiliates = await db.affiliate.findMany({
+    where: { orgId },
     include: {
       user: { select: { name: true, email: true } },
       referrals: {

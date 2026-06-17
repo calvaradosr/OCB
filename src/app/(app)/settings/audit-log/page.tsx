@@ -20,6 +20,7 @@ export default async function AuditLogPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "settings:write")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const sp = await searchParams
   const page = Math.max(1, parseInt(sp.page ?? "1", 10))
@@ -27,6 +28,7 @@ export default async function AuditLogPage({
   const skip = (page - 1) * pageSize
 
   const where = {
+    orgId,
     ...(sp.entity ? { entity: sp.entity } : {}),
     ...(sp.actor ? { actorId: sp.actor } : {}),
   }
@@ -45,6 +47,7 @@ export default async function AuditLogPage({
   const totalPages = Math.ceil(total / pageSize)
 
   const entities = await db.auditLog.findMany({
+    where: { orgId },
     distinct: ["entity"],
     select: { entity: true },
     orderBy: { entity: "asc" },

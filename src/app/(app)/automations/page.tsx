@@ -28,8 +28,10 @@ export default async function AutomationsPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "settings:write")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const automations = await db.automation.findMany({
+    where: { orgId },
     include: { _count: { select: { logs: true } } },
     orderBy: { createdAt: "desc" },
   })
@@ -47,9 +49,16 @@ export default async function AutomationsPage() {
       </div>
 
       {automations.length === 0 ? (
-        <div className="bg-white rounded-xl border border-secondary-soft p-12 text-center">
-          <p className="text-muted text-sm">No automations yet.</p>
-          <p className="text-xs text-muted mt-1">Create rules to send emails, SMS, or tasks when events happen.</p>
+        <div className="bg-white rounded-xl border border-dashed border-secondary-soft p-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-secondary-soft flex items-center justify-center mx-auto mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <p className="font-semibold text-ink mb-1">No automations yet</p>
+          <p className="text-sm text-muted mb-1">Automate follow-ups, FCRA clock reminders, and per-deletion invoices.</p>
+          <p className="text-xs text-muted mb-4">Common starters: Welcome email on signup · 30-day FCRA follow-up · Per-deletion invoice</p>
+          <Link href="/automations/new" className="inline-flex px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors">
+            Create first automation
+          </Link>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-secondary-soft overflow-hidden">

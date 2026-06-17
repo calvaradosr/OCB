@@ -17,6 +17,7 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.id = user.id
         token.role = user.role
+        token.orgId = user.orgId
       }
       return token
     },
@@ -24,6 +25,7 @@ export const authConfig: NextAuthConfig = {
     session({ session, token }) {
       session.user.id = (token.id as string) ?? ""
       session.user.role = (token.role as Role) ?? "CLIENT"
+      session.user.orgId = (token.orgId as string) ?? "ocb"
       return session
     },
 

@@ -10,6 +10,11 @@ export default async function SettingsPage() {
 
   const items = [
     {
+      href: "/settings/organization",
+      title: "Organization",
+      desc: "Manage your organization name, plan, and create new tenant organizations.",
+    },
+    {
       href: "/settings/users",
       title: "Users",
       desc: "Invite staff, assign roles, reset MFA and passwords.",

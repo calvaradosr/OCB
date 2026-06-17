@@ -525,8 +525,21 @@ model TradelineOrder {
   @@index([tradelineId, status])
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  slug      String   @unique  // matches orgId on all other models; e.g. "ocb"
+  name      String
+  plan      String   @default("standard")  // standard | pro | enterprise
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug, active])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
+  orgId     String   @default("ocb")
   actor     User?    @relation(fields: [actorId], references: [id])
   actorId   String?
   action    String
@@ -536,6 +549,7 @@ model AuditLog {
   ip        String?
   createdAt DateTime @default(now())
 
+  @@index([orgId, entity, entityId])
   @@index([entity, entityId])
 }
 

@@ -29,6 +29,7 @@ export default async function LoansPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const { clientId, view } = await searchParams
   const isMyQueue = view === "mine"
@@ -38,7 +39,7 @@ export default async function LoansPage({
   const processorFilter = isMyQueue ? { processorId: session.user.id } : {}
   const clientFilter = clientId ? { clientId } : {}
 
-  const where = { ...processorFilter, ...clientFilter }
+  const where = { orgId, ...processorFilter, ...clientFilter }
 
   const loanFiles = await db.loanFile.findMany({
     where,
@@ -53,7 +54,7 @@ export default async function LoansPage({
 
   // If viewing a specific client, load their name for the header
   const clientName = clientId
-    ? await db.client.findUnique({ where: { id: clientId }, select: { firstName: true, lastName: true } })
+    ? await db.client.findUnique({ where: { id: clientId, orgId }, select: { firstName: true, lastName: true } })
     : null
 
   // Group by status for the pipeline view

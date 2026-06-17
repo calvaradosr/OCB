@@ -53,7 +53,7 @@ export default async function DisputesDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Credit Repair</h1>
+          <h1 className="text-2xl font-semibold text-ink">Disputes</h1>
           <p className="text-sm text-muted mt-1">Dispute pipeline &amp; FCRA tracking</p>
         </div>
         {overdueCount > 0 && (

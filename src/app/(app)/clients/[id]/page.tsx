@@ -57,11 +57,12 @@ export default async function ClientProfilePage({
 }) {
   const session = (await auth())!
   if (!can(session.user.role, "clients:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const { id } = await params
 
   const client = await db.client.findUnique({
-    where: { id },
+    where: { id, orgId },
     include: {
       assignedAgent: { select: { id: true, name: true } },
       documents: { orderBy: { createdAt: "desc" } },
@@ -75,7 +76,7 @@ export default async function ClientProfilePage({
   if (!client) notFound()
 
   const auditEvents = await db.auditLog.findMany({
-    where: { entity: "Client", entityId: id },
+    where: { orgId, entity: "Client", entityId: id },
     include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -147,9 +148,18 @@ export default async function ClientProfilePage({
 
   // Loan data
   const loanFiles = await db.loanFile.findMany({
-    where: { clientId: id },
+    where: { orgId, clientId: id },
     select: { id: true, status: true },
   })
+
+  // Tradeline data
+  const canTradelines = can(session.user.role, "tradelines:read")
+  const activeTradelineOrders = canTradelines
+    ? await db.tradelineOrder.count({
+        where: { orgId, clientId: id, status: { notIn: ["REMOVED", "CANCELLED"] } },
+      })
+    : 0
+  const hasTradeline = client.modules.includes("TRADELINE")
   const activeLoanFiles = loanFiles.filter(f => !["FUNDED","DECLINED","WITHDRAWN"].includes(f.status))
   const creditReady = latestReport
     ? isCreditReady({
@@ -164,10 +174,7 @@ export default async function ClientProfilePage({
 
   return (
     <div className="max-w-5xl space-y-6">
-      {/* Breadcrumb */}
-      <Link href="/clients" className="text-sm text-muted hover:text-ink transition-colors">
-        ← Clients
-      </Link>
+      <Link href="/clients" className="text-sm text-muted hover:text-ink transition-colors">← Clients</Link>
 
       {/* Profile header */}
       <div className="bg-white rounded-xl border border-secondary-soft p-6">
@@ -180,8 +187,8 @@ export default async function ClientProfilePage({
               <StatusBadge status={client.status} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-              {client.email && <span>{client.email}</span>}
-              {client.phone && <span>{client.phone}</span>}
+              {client.email && <a href={`mailto:${client.email}`} className="hover:text-primary transition-colors">{client.email}</a>}
+              {client.phone && <a href={`tel:${client.phone}`} className="hover:text-primary transition-colors">{client.phone}</a>}
               {client.assignedAgent && <span>Agent: {client.assignedAgent.name}</span>}
             </div>
             {client.modules.length > 0 && (
@@ -454,6 +461,35 @@ export default async function ClientProfilePage({
               </p>
               <p className="text-xs text-muted mt-0.5">
                 {activeLoanFiles.length > 0 ? "Loan processing pipeline" : "Start a loan file"}
+              </p>
+            </div>
+            <span className="text-muted group-hover:text-primary text-lg">→</span>
+          </Link>
+        )}
+        {canTradelines && (
+          <Link
+            href={`/clients/${id}/tradelines`}
+            className={`flex items-center justify-between rounded-xl p-4 hover:border-primary transition-colors group ${
+              hasTradeline
+                ? "bg-white border border-secondary-soft"
+                : "bg-primary/5 border border-primary/20 hover:bg-primary/10"
+            }`}
+          >
+            <div>
+              <p className="font-semibold text-ink group-hover:text-primary">
+                Tradelines
+                {hasTradeline && activeTradelineOrders > 0 && (
+                  <span className="ml-2 text-xs font-normal bg-secondary-soft text-muted px-1.5 py-0.5 rounded-full">
+                    {activeTradelineOrders} active
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-muted mt-0.5">
+                {hasTradeline
+                  ? activeTradelineOrders > 0
+                    ? "View AU spot orders"
+                    : "No active orders"
+                  : "Boost this client's profile with an AU spot"}
               </p>
             </div>
             <span className="text-muted group-hover:text-primary text-lg">→</span>

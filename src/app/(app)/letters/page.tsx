@@ -88,8 +88,8 @@ export default async function LettersPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Print Queue</h1>
-          <p className="text-sm text-muted mt-0.5">All generated dispute letters — view, print, and track delivery.</p>
+          <h1 className="text-2xl font-semibold text-ink">Letters</h1>
+          <p className="text-sm text-muted mt-0.5">Print queue — view, print, and track delivery of all dispute letters.</p>
         </div>
         {totalUnsent > 0 && (
           <span className="px-3 py-1.5 bg-warning/10 text-warning text-sm font-semibold rounded-full">

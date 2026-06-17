@@ -66,19 +66,6 @@ export default async function ReportViewPage({
 
   return (
     <div className="max-w-6xl space-y-6">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-muted flex items-center gap-2">
-        <Link href="/clients" className="hover:text-ink">Clients</Link>
-        <span>›</span>
-        <Link href={`/clients/${id}`} className="hover:text-ink">{client.firstName} {client.lastName}</Link>
-        <span>›</span>
-        <Link href={`/clients/${id}/reports`} className="hover:text-ink">Reports</Link>
-        <span>›</span>
-        <span className="text-ink font-medium">
-          {report.pulledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-        </span>
-      </nav>
-
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

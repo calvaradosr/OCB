@@ -23,11 +23,12 @@ export default async function ClientsPage({
   searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string }>
 }) {
   const session = (await auth())!
+  const { orgId } = session.user
   const { q, status, agent, page: pageStr } = await searchParams
   const page = Math.max(1, parseInt(pageStr ?? "1", 10))
 
   const where = {
-    orgId: "ocb",
+    orgId,
     ...(q
       ? {
           OR: [
@@ -41,7 +42,7 @@ export default async function ClientsPage({
     ...(agent ? { assignedAgentId: agent } : {}),
   }
 
-  const [clients, total, agents] = await Promise.all([
+  const [clients, total, agents, statusCounts] = await Promise.all([
     db.client.findMany({
       where,
       include: { assignedAgent: { select: { id: true, name: true } } },
@@ -51,11 +52,19 @@ export default async function ClientsPage({
     }),
     db.client.count({ where }),
     db.user.findMany({
-      where: { role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
+      where: { orgId, role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    db.client.groupBy({
+      by: ["status"],
+      where: { orgId },
+      _count: { _all: true },
+    }),
   ])
+
+  const countByStatus = Object.fromEntries(statusCounts.map(s => [s.status, s._count._all]))
+  const totalAll = Object.values(countByStatus).reduce((a, b) => a + b, 0)
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const canWrite = can(session.user.role, "clients:write")
@@ -121,17 +130,25 @@ export default async function ClientsPage({
       <div className="flex gap-1 mb-4 border-b border-secondary-soft overflow-x-auto">
         {(["ALL", ...CLIENT_STATUSES] as const).map(s => {
           const params = new URLSearchParams({ ...(q ? { q } : {}), ...(agent ? { agent } : {}), status: s === "ALL" ? "" : s })
+          const count = s === "ALL" ? totalAll : (countByStatus[s] ?? 0)
           return (
             <a
               key={s}
               href={`/clients?${params}`}
-              className={`px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
                 (status ?? "ALL") === s
                   ? "border-primary text-primary font-medium"
                   : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {s === "ALL" ? "All" : STATUS_LABELS[s]}
+              {count > 0 && (
+                <span className={`text-xs rounded-full px-1.5 py-0.5 font-medium ${
+                  (status ?? "ALL") === s ? "bg-primary/15 text-primary" : "bg-secondary-soft text-muted"
+                }`}>
+                  {count}
+                </span>
+              )}
             </a>
           )
         })}

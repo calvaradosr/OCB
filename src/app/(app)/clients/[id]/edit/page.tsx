@@ -13,13 +13,14 @@ export default async function EditClientPage({
 }) {
   const session = (await auth())!
   if (!can(session.user.role, "clients:write")) redirect("/clients")
+  const { orgId } = session.user
 
   const { id } = await params
 
   const [client, agents] = await Promise.all([
-    db.client.findUnique({ where: { id } }),
+    db.client.findUnique({ where: { id, orgId } }),
     db.user.findMany({
-      where: { role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
+      where: { orgId, role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
