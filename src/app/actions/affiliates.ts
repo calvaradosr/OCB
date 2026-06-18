@@ -93,7 +93,7 @@ export async function linkReferral(opts: {
 
   await db.referral.upsert({
     where: { clientId: opts.clientId },
-    create: { affiliateId: affiliate.id, clientId: opts.clientId, commissionCents },
+    create: { affiliateId: affiliate.id, clientId: opts.clientId, commissionCents, orgId: affiliate.orgId },
     update: {},
   })
 }

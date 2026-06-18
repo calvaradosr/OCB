@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { can } from "@/lib/rbac"
 import { db } from "@/lib/db"
 import Link from "next/link"
+import { CopyLinkButton } from "./CopyLinkButton"
 
 export default async function AffiliatesPage() {
   const session = await auth()
@@ -109,8 +110,9 @@ export default async function AffiliatesPage() {
                   </div>
                 )}
 
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex items-center gap-4 flex-wrap">
                   <Link href={`/affiliates/${a.id}/edit`} className="text-xs text-primary hover:underline">Edit</Link>
+                  <CopyLinkButton url={`${process.env.NEXTAUTH_URL ?? ""}/signup/${a.code}`} />
                 </div>
               </div>
             )
