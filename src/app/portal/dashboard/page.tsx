@@ -47,6 +47,8 @@ export default async function PortalDashboard() {
     transunion: r.scoreTransunion,
   }))
 
+  const deletionRate = totalDisputed > 0 ? Math.round(((totalDeleted + totalRepaired) / totalDisputed) * 100) : 0
+
   return (
     <div className="space-y-8">
       <div>
@@ -76,17 +78,61 @@ export default async function PortalDashboard() {
         </div>
       )}
 
+      {/* Progress hero — the most prominent CRC parity element */}
+      {totalDisputed > 0 && (
+        <div className="bg-white rounded-xl border border-secondary-soft p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-ink">Removal Progress</h2>
+            <span className="text-2xl font-bold text-success">{deletionRate}%</span>
+          </div>
+          <div className="w-full bg-secondary-soft rounded-full h-4 mb-3">
+            <div
+              className="h-4 rounded-full bg-success transition-all"
+              style={{ width: `${deletionRate}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-muted">
+            <span>{totalDeleted + totalRepaired} items removed or repaired</span>
+            <span>{totalDisputed} total disputed</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-secondary-soft">
+            <div className="text-center">
+              <p className="text-xl font-bold text-success">{totalDeleted}</p>
+              <p className="text-xs text-muted">Deleted</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-primary">{totalRepaired}</p>
+              <p className="text-xs text-muted">Repaired</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-ink">{currentRound || "—"}</p>
+              <p className="text-xs text-muted">Round</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Score summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {(["Experian", "Equifax", "TransUnion"] as const).map(bureau => {
           const key = `score${bureau}` as "scoreExperian" | "scoreEquifax" | "scoreTransunion"
           const score = latestReport?.[key]
+          const prevReport = reports.at(-2)
+          const prevScore = prevReport?.[key]
+          const change = score && prevScore ? score - prevScore : null
           return (
             <div key={bureau} className="bg-white rounded-lg border border-secondary-soft p-5">
               <p className="text-xs text-muted uppercase tracking-wide">{bureau}</p>
-              <p className="text-4xl font-bold text-ink mt-1">
+              <p className={`text-4xl font-bold mt-1 ${
+                score && score >= 740 ? "text-success" : score && score >= 670 ? "text-primary" : score && score >= 580 ? "text-warning" : "text-ink"
+              }`}>
                 {score ?? "—"}
               </p>
+              {change !== null && (
+                <p className={`text-xs font-medium mt-1 ${change > 0 ? "text-success" : change < 0 ? "text-danger" : "text-muted"}`}>
+                  {change > 0 ? `+${change}` : change} pts
+                </p>
+              )}
               <p className="text-xs text-muted mt-1">
                 {latestReport ? `As of ${latestReport.pulledAt.toLocaleDateString()}` : "No report yet"}
               </p>
@@ -95,19 +141,18 @@ export default async function PortalDashboard() {
         })}
       </div>
 
-      {/* Dispute stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Items Disputed" value={totalDisputed} />
-        <StatCard label="Deleted" value={totalDeleted} color="success" />
-        <StatCard label="Repaired" value={totalRepaired} color="primary" />
-        <StatCard label="Current Round" value={currentRound || "—"} />
-      </div>
-
       {/* Score trend chart (client component) */}
       {scoreData.length > 1 && (
         <div className="bg-white rounded-lg border border-secondary-soft p-5">
           <h2 className="text-sm font-semibold text-ink mb-4">Score Trend</h2>
           <ScoreTrendChart data={scoreData} />
+        </div>
+      )}
+
+      {totalDisputed === 0 && (
+        <div className="bg-secondary-soft/30 rounded-xl border border-secondary-soft p-8 text-center">
+          <p className="text-sm font-medium text-ink">No disputes on file yet</p>
+          <p className="text-xs text-muted mt-1">Your specialist will begin the dispute process after reviewing your credit report.</p>
         </div>
       )}
     </div>

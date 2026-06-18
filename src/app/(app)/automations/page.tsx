@@ -32,7 +32,10 @@ export default async function AutomationsPage() {
 
   const automations = await db.automation.findMany({
     where: { orgId },
-    include: { _count: { select: { logs: true } } },
+    include: {
+      _count: { select: { logs: true } },
+      logs: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true, result: true } },
+    },
     orderBy: { createdAt: "desc" },
   })
 
@@ -48,16 +51,63 @@ export default async function AutomationsPage() {
         </Link>
       </div>
 
+      {/* Quick-start templates */}
+      {automations.length === 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-widest">Quick-start templates</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              {
+                title: "Welcome email",
+                desc: "Send a welcome email when a new client is created",
+                params: "trigger=CLIENT_CREATED&action=SEND_EMAIL",
+              },
+              {
+                title: "FCRA 30-day reminder",
+                desc: "Create a task when the 30-day reinvestigation clock expires",
+                params: "trigger=FCRA_CLOCK_30_DAYS&action=CREATE_TASK",
+              },
+              {
+                title: "Per-deletion invoice",
+                desc: "Automatically invoice clients for each deleted dispute item (CROA compliant)",
+                params: "trigger=DISPUTE_OUTCOME_DELETED&action=CHARGE_PER_DELETE",
+              },
+              {
+                title: "FCRA 45-day reminder",
+                desc: "Notify client via portal when the 45-day clock expires",
+                params: "trigger=FCRA_CLOCK_45_DAYS&action=NOTIFY_CLIENT",
+              },
+              {
+                title: "Overdue invoice alert",
+                desc: "Send SMS when a client invoice becomes overdue",
+                params: "trigger=INVOICE_OVERDUE&action=SEND_SMS",
+              },
+              {
+                title: "Dispute outcome email",
+                desc: "Email clients when any dispute outcome is recorded",
+                params: "trigger=DISPUTE_OUTCOME_ANY&action=SEND_EMAIL",
+              },
+            ].map(t => (
+              <Link
+                key={t.title}
+                href={`/automations/new?${t.params}`}
+                className="bg-white rounded-xl border border-secondary-soft p-4 hover:border-primary/30 hover:shadow-sm transition-all"
+              >
+                <p className="text-sm font-medium text-ink">{t.title}</p>
+                <p className="text-xs text-muted mt-1">{t.desc}</p>
+                <p className="text-xs text-primary mt-2 font-medium">Use template →</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {automations.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-secondary-soft p-12 text-center">
-          <div className="w-12 h-12 rounded-full bg-secondary-soft flex items-center justify-center mx-auto mb-4">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
           <p className="font-semibold text-ink mb-1">No automations yet</p>
-          <p className="text-sm text-muted mb-1">Automate follow-ups, FCRA clock reminders, and per-deletion invoices.</p>
-          <p className="text-xs text-muted mb-4">Common starters: Welcome email on signup · 30-day FCRA follow-up · Per-deletion invoice</p>
+          <p className="text-sm text-muted mb-4">Use a template above or create one from scratch.</p>
           <Link href="/automations/new" className="inline-flex px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors">
-            Create first automation
+            Create from scratch
           </Link>
         </div>
       ) : (
@@ -69,6 +119,7 @@ export default async function AutomationsPage() {
                 <th className="px-5 py-3 text-left text-xs text-muted font-medium">When</th>
                 <th className="px-5 py-3 text-left text-xs text-muted font-medium">Then</th>
                 <th className="px-5 py-3 text-left text-xs text-muted font-medium">Runs</th>
+                <th className="px-5 py-3 text-left text-xs text-muted font-medium">Last run</th>
                 <th className="px-5 py-3 text-left text-xs text-muted font-medium">Status</th>
                 <th className="px-5 py-3" />
               </tr>
@@ -80,6 +131,13 @@ export default async function AutomationsPage() {
                   <td className="px-5 py-3 text-muted text-xs">{TRIGGER_LABELS[a.trigger]}</td>
                   <td className="px-5 py-3 text-muted text-xs">{ACTION_LABELS[a.action]}</td>
                   <td className="px-5 py-3 text-muted text-xs">{a._count.logs}</td>
+                  <td className="px-5 py-3 text-xs text-muted">
+                    {a.logs[0] ? (
+                      <span className={a.logs[0].result === "SUCCESS" ? "text-success" : "text-danger"}>
+                        {a.logs[0].createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    ) : "Never"}
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${a.active ? "bg-green-50 text-success" : "bg-secondary-soft text-muted"}`}>
                       {a.active ? "Active" : "Paused"}
