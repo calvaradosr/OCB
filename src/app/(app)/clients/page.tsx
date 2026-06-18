@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac"
 import { StatusBadge } from "@/components/StatusBadge"
 import { CLIENT_STATUSES, STATUS_LABELS, type ClientStatus } from "@/lib/client-utils"
 import KanbanBoard from "./KanbanBoard"
+import { InlineStatusSelect } from "@/components/InlineStatusSelect"
 
 const PAGE_SIZE = 25
 
@@ -329,9 +330,9 @@ export default async function ClientsPage({
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/clients/${c.id}`} className="block">
-                        <StatusBadge status={c.status} />
-                      </Link>
+                      {canWrite
+                        ? <InlineStatusSelect clientId={c.id} currentStatus={c.status} />
+                        : <Link href={`/clients/${c.id}`} className="block"><StatusBadge status={c.status} /></Link>}
                     </td>
                     <td className="px-4 py-3 text-muted">
                       <Link href={`/clients/${c.id}`} className="block">

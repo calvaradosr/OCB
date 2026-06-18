@@ -166,8 +166,34 @@ export default function DisputeWizard({
       {/* Step 1 — Select items */}
       {step === 1 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-ink">Select items to dispute</h2>
-          <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to dispute at for each item.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Select items to dispute</h2>
+              <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to dispute at for each item.</p>
+            </div>
+            {items.length > 0 && (
+              <div className="flex gap-2 text-xs">
+                <button
+                  onClick={() => setSelectedIds(new Set(items.map(it => it.id)))}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-muted hover:text-ink hover:border-primary/30 transition-colors"
+                >
+                  Select all
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set(items.filter(it => it.flagged).map(it => it.id)))}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-warning hover:border-warning/50 transition-colors"
+                >
+                  Flagged only
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
 
           {items.length === 0 ? (
             <div className="text-sm text-muted p-8 border border-dashed border-secondary-soft rounded-lg text-center">
