@@ -105,6 +105,18 @@ export default async function ClientProfilePage({
       ])
     : [null, []]
 
+  const bureauCredCount = isCR
+    ? await db.bureauCredential.count({ where: { clientId: id } })
+    : 0
+
+  const latestBureauFetch = isCR
+    ? await db.bureauCredential.findFirst({
+        where: { clientId: id, lastFetchAt: { not: null } },
+        orderBy: { lastFetchAt: "desc" },
+        select: { lastFetchAt: true },
+      })
+    : null
+
   const itemStats = isCR
     ? await db.reportItem.aggregate({
         where: { clientId: id },
@@ -425,6 +437,29 @@ export default async function ClientProfilePage({
                   {latestReport
                     ? `${latestReport._count.items} items · ${latestReport.pulledAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                     : "No report imported yet"}
+                </p>
+              </div>
+              <span className="text-muted group-hover:text-primary text-lg">→</span>
+            </Link>
+            <Link
+              href={`/clients/${id}/reports/import?tab=auto`}
+              className="flex items-center justify-between bg-white border border-secondary-soft rounded-xl p-4 hover:border-primary transition-colors group"
+            >
+              <div>
+                <p className="font-semibold text-ink group-hover:text-primary">Bureau Access</p>
+                <p className="text-xs text-muted mt-0.5">
+                  {bureauCredCount > 0
+                    ? `${bureauCredCount} of 6 service${bureauCredCount !== 1 ? "s" : ""} connected`
+                    : "No services connected"}
+                  {latestBureauFetch?.lastFetchAt && (
+                    <>
+                      {" · Last fetch: "}
+                      {new Date(latestBureauFetch.lastFetchAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </>
+                  )}
                 </p>
               </div>
               <span className="text-muted group-hover:text-primary text-lg">→</span>

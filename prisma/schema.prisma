@@ -182,6 +182,7 @@ model Client {
   messages        Message[]
   loanFiles         LoanFile[]
   tradelineOrders   TradelineOrder[]
+  bureauCredentials BureauCredential[]
   // Stripe customer id — created on first billing action
   stripeCustomerId String?
   // Portal login: clients authenticate via their own email+password (Role=CLIENT)
@@ -611,4 +612,32 @@ model Referral {
   createdAt       DateTime   @default(now())
 
   @@index([affiliateId, paidAt])
+}
+
+// ─── Bureau Credentials (Auto-Import) ────────────────────────────────────────
+
+enum BureauService {
+  IDENTITY_IQ
+  MY_SCORE_360
+  EXPERIAN
+  EQUIFAX
+  TRANSUNION
+  ANNUAL_CREDIT_REPORT
+}
+
+model BureauCredential {
+  id                String        @id @default(cuid())
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId          String
+  service           BureauService
+  username          String
+  passwordEncrypted String
+  lastFetchAt       DateTime?
+  lastStatus        String?       // "success" | "failed" | "captcha" | "mfa_required" | "pending"
+  lastError         String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([clientId, service])
+  @@index([clientId])
 }

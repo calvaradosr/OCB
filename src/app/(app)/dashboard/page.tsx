@@ -229,11 +229,11 @@ export default async function DashboardPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
                   <span className="text-sm text-ink truncate">
-                    Send letters — {letter.dispute.client.firstName} {letter.dispute.client.lastName}
+                    Send letters — {letter.dispute?.client.firstName} {letter.dispute?.client.lastName}
                   </span>
                 </div>
                 <Link
-                  href={`/clients/${letter.dispute.client.id}/disputes/${letter.dispute.id}`}
+                  href={letter.dispute ? `/clients/${letter.dispute.client.id}/disputes/${letter.dispute.id}` : "/letters"}
                   className="text-xs text-primary hover:underline shrink-0"
                 >
                   View →
