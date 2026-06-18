@@ -60,13 +60,14 @@ export default async function DashboardPage() {
     : [null, null, null]
 
   // Dispute stats
+  const diScope = { dispute: { client: { orgId } } }
   const [openDisputes, deletedItems, totalResolvedItems, overdueDisputes, pendingLetters] = canDisputes
     ? await Promise.all([
-        db.disputeItem.count({ where: { outcome: "PENDING" } }),
-        db.disputeItem.count({ where: { outcome: "DELETED" } }),
-        db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
-        db.disputeItem.count({ where: { outcome: "PENDING", dueAt: { lt: now } } }),
-        db.letter.count({ where: { sentAt: null } }),
+        db.disputeItem.count({ where: { outcome: "PENDING", ...diScope } }),
+        db.disputeItem.count({ where: { outcome: "DELETED", ...diScope } }),
+        db.disputeItem.count({ where: { outcome: { not: "PENDING" }, ...diScope } }),
+        db.disputeItem.count({ where: { outcome: "PENDING", dueAt: { lt: now }, ...diScope } }),
+        db.letter.count({ where: { sentAt: null, client: { orgId } } }),
       ])
     : [null, null, null, null, null]
 
@@ -75,14 +76,15 @@ export default async function DashboardPage() {
     : null
 
   // Billing stats
+  const invoiceOrgScope = { client: { orgId } }
   const [collectedThisMonth, activeSubscriptions, failedInvoices] = canBilling
     ? await Promise.all([
         db.invoice.aggregate({
           _sum: { amountCents: true },
-          where: { status: "PAID", createdAt: { gte: startOfMonth } },
+          where: { status: "PAID", createdAt: { gte: startOfMonth }, ...invoiceOrgScope },
         }).then(r => r._sum.amountCents ?? 0),
-        db.subscription.count({ where: { status: { in: ["active", "trialing"] } } }),
-        db.invoice.count({ where: { status: "FAILED" } }),
+        db.subscription.count({ where: { status: { in: ["active", "trialing"] }, ...invoiceOrgScope } }),
+        db.invoice.count({ where: { status: "FAILED", ...invoiceOrgScope } }),
       ])
     : [null, null, null]
 
