@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, FileText, Mail, Briefcase,
   Building2, CreditCard, Zap, Users2, Settings,
-  ClipboardList, ScrollText,
+  ClipboardList, ScrollText, BarChart2, FileEdit,
 } from "lucide-react"
 
 const ICONS: Record<string, React.ElementType> = {
@@ -12,6 +12,7 @@ const ICONS: Record<string, React.ElementType> = {
   clients:     Users,
   disputes:    FileText,
   letters:     Mail,
+  reports:     BarChart2,
   loans:       Briefcase,
   lenders:     Building2,
   tradelines:  CreditCard,
@@ -19,6 +20,7 @@ const ICONS: Record<string, React.ElementType> = {
   affiliates:  Users2,
   settings:    Settings,
   users:       ClipboardList,
+  templates:   FileEdit,
   "audit-log": ScrollText,
 }
 

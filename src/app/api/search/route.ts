@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const contains = { contains: q, mode: "insensitive" as const }
 
-  const [clients, loanFiles] = await Promise.all([
+  const [clients, disputes, loanFiles] = await Promise.all([
     db.client.findMany({
       where: {
         orgId,
@@ -25,6 +25,22 @@ export async function GET(req: NextRequest) {
       },
       select: { id: true, firstName: true, lastName: true, email: true, phone: true, status: true },
       take: 8,
+    }),
+    db.dispute.findMany({
+      where: {
+        client: {
+          orgId,
+          OR: [{ firstName: contains }, { lastName: contains }],
+        },
+      },
+      select: {
+        id: true,
+        round: true,
+        strategy: true,
+        client: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 4,
     }),
     db.loanFile.findMany({
       where: {
@@ -49,6 +65,13 @@ export async function GET(req: NextRequest) {
       title: `${c.firstName} ${c.lastName}`,
       sub: c.email ?? c.phone ?? c.status,
       href: `/clients/${c.id}`,
+    })),
+    ...disputes.map(d => ({
+      id: d.id,
+      type: "dispute",
+      title: `${d.client.firstName} ${d.client.lastName} — Round ${d.round}`,
+      sub: d.strategy.replace(/_/g, " ").toLowerCase(),
+      href: `/clients/${d.client.id}/disputes/${d.id}`,
     })),
     ...loanFiles.map(l => ({
       id: l.id,

@@ -32,7 +32,8 @@ export default async function AffiliatePortalPage() {
   const pending = totalEarned - paid
   const activeClients = affiliate.referrals.filter(r => ["ACTIVE", "SIGNED"].includes(r.client.status)).length
 
-  const signupLink = `${process.env.AUTH_URL ?? "http://localhost:3000"}/signup?ref=${affiliate.code}`
+  const base = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "http://localhost:3000"
+  const signupLink = `${base}/signup/${affiliate.code}`
 
   return (
     <div className="space-y-8 max-w-3xl">

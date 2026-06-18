@@ -7,6 +7,7 @@ const NAV = [
   { href: "/clients",     label: "Clients",      icon: "clients" },
   { href: "/disputes",    label: "Disputes",     icon: "disputes" },
   { href: "/letters",     label: "Letters",      icon: "letters" },
+  { href: "/reports",     label: "Reports",      icon: "reports" },
   { href: "/loans",       label: "Loans",        icon: "loans" },
   { href: "/lenders",     label: "Lenders",      icon: "lenders" },
   { href: "/tradelines",  label: "Tradelines",   icon: "tradelines" },
@@ -17,6 +18,7 @@ const NAV = [
 const SETTINGS_NAV = [
   { href: "/settings/organization", label: "Organization", icon: "settings" },
   { href: "/settings/users",        label: "Users",        icon: "users" },
+  { href: "/settings/templates",    label: "Templates",    icon: "templates" },
   { href: "/settings/audit-log",    label: "Audit Log",    icon: "audit-log" },
 ]
 

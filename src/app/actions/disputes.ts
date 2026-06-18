@@ -12,7 +12,15 @@ import path from "path"
 
 const TEMPLATES_DIR = path.join(process.cwd(), "src/lib/letters/templates")
 
-async function readTemplate(name: string): Promise<string> {
+async function readTemplate(name: string, orgId?: string): Promise<string> {
+  // Check for org-specific override in DB first
+  if (orgId) {
+    const override = await db.letterTemplate.findFirst({
+      where: { name: `${orgId}:${name}`, active: true },
+      select: { body: true },
+    })
+    if (override) return override.body
+  }
   return fs.readFile(path.join(TEMPLATES_DIR, `${name}.md`), "utf8")
 }
 
@@ -59,10 +67,11 @@ export async function previewDisputeLetters(data: DisputeWizardData) {
     select: { firstName: true, lastName: true, addressLine1: true, city: true, state: true, zip: true },
   })
 
-  const template = await readTemplate(data.templateId)
-  const cfpbTemplate = data.includeCFPB ? await readTemplate("cfpb-complaint") : undefined
-  const ftcTemplate = data.includeFTC ? await readTemplate("ftc-identity-theft") : undefined
-  const stateAgTemplate = data.includeStateAG ? await readTemplate("state-ag-complaint") : undefined
+  const orgId = session.user.orgId
+  const template = await readTemplate(data.templateId, orgId)
+  const cfpbTemplate = data.includeCFPB ? await readTemplate("cfpb-complaint", orgId) : undefined
+  const ftcTemplate = data.includeFTC ? await readTemplate("ftc-identity-theft", orgId) : undefined
+  const stateAgTemplate = data.includeStateAG ? await readTemplate("state-ag-complaint", orgId) : undefined
 
   const items: SelectedItem[] = data.selections.map(s => ({
     creditorName: s.creditorName,
@@ -96,11 +105,12 @@ export async function createDispute(
   })
 
   const existingCount = await db.dispute.count({ where: { clientId: data.clientId } })
+  const orgId = session.user.orgId
 
-  const template = await readTemplate(data.templateId)
-  const cfpbTemplate = data.includeCFPB ? await readTemplate("cfpb-complaint") : undefined
-  const ftcTemplate = data.includeFTC ? await readTemplate("ftc-identity-theft") : undefined
-  const stateAgTemplate = data.includeStateAG ? await readTemplate("state-ag-complaint") : undefined
+  const template = await readTemplate(data.templateId, orgId)
+  const cfpbTemplate = data.includeCFPB ? await readTemplate("cfpb-complaint", orgId) : undefined
+  const ftcTemplate = data.includeFTC ? await readTemplate("ftc-identity-theft", orgId) : undefined
+  const stateAgTemplate = data.includeStateAG ? await readTemplate("state-ag-complaint", orgId) : undefined
 
   const items: SelectedItem[] = data.selections.map(s => ({
     creditorName: s.creditorName,
