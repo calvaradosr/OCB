@@ -13,10 +13,19 @@ export async function addNote(
   if (!can(session.user.role, "clients:write")) return { error: "Unauthorized" }
 
   const clientId = formData.get("clientId") as string
-  const body = (formData.get("body") as string)?.trim()
+  const rawBody = (formData.get("body") as string)?.trim()
+  const noteType = (formData.get("noteType") as string) || "note"
 
   if (!clientId) return { error: "Missing client ID" }
-  if (!body) return { error: "Note body is required" }
+  if (!rawBody) return { error: "Note body is required" }
+
+  const TYPE_PREFIX: Record<string, string> = {
+    call: "[Call] ",
+    email: "[Email] ",
+    meeting: "[Meeting] ",
+    task: "[Task] ",
+  }
+  const body = (TYPE_PREFIX[noteType] ?? "") + rawBody
 
   await db.note.create({
     data: { clientId, authorId: session.user.id, body },

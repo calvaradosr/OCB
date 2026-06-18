@@ -29,6 +29,28 @@ function eventLabel(action: string, detail: unknown): string {
   }
 }
 
+const NOTE_TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  "[Call]": { label: "Call", cls: "bg-primary/10 text-primary" },
+  "[Email]": { label: "Email", cls: "bg-success/10 text-success" },
+  "[Meeting]": { label: "Meeting", cls: "bg-warning/10 text-warning" },
+  "[Task]": { label: "Task", cls: "bg-secondary text-white" },
+}
+
+function NoteBody({ body }: { body: string }) {
+  for (const [prefix, badge] of Object.entries(NOTE_TYPE_BADGE)) {
+    if (body.startsWith(prefix + " ")) {
+      const text = body.slice(prefix.length + 1)
+      return (
+        <div className="flex gap-2 items-start">
+          <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${badge.cls}`}>{badge.label}</span>
+          <p className="text-sm text-ink whitespace-pre-wrap">{text}</p>
+        </div>
+      )
+    }
+  }
+  return <p className="text-sm text-ink whitespace-pre-wrap">{body}</p>
+}
+
 export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
   if (items.length === 0) {
     return <p className="text-sm text-muted py-4">No activity yet.</p>
@@ -50,7 +72,7 @@ export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
 
           {item.kind === "note" ? (
             <div className="bg-secondary-soft rounded-lg p-3">
-              <p className="text-sm text-ink whitespace-pre-wrap">{item.body}</p>
+              <NoteBody body={item.body} />
               <p className="text-xs text-muted mt-1">
                 {item.authorName} · {formatDate(item.createdAt)}
               </p>
