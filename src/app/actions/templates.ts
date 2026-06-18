@@ -37,17 +37,27 @@ export async function saveTemplate(
   const { orgId } = session.user
   const key = `${orgId}:${templateId}`
 
-  await db.letterTemplate.upsert({
-    where: { name: key } as never,
-    create: {
-      name: key,
-      target: "BUREAU",
-      category: templateId,
-      body: body.trim(),
-      active: true,
-    },
-    update: { body: body.trim(), active: true },
+  const existing = await db.letterTemplate.findFirst({
+    where: { name: key, active: true },
+    select: { id: true },
   })
+
+  if (existing) {
+    await db.letterTemplate.update({
+      where: { id: existing.id },
+      data: { body: body.trim() },
+    })
+  } else {
+    await db.letterTemplate.create({
+      data: {
+        name: key,
+        target: "BUREAU",
+        category: templateId,
+        body: body.trim(),
+        active: true,
+      },
+    })
+  }
 
   revalidatePath("/settings/templates")
   return { ok: true }

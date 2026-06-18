@@ -210,12 +210,26 @@ export default async function ClientProfilePage({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href={`/clients/${id}/messages`}
+              className="shrink-0 rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"
+            >
+              Message
+            </Link>
             {canWrite && (
               <Link
                 href={`/clients/${id}/edit`}
                 className="shrink-0 rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"
               >
                 Edit
+              </Link>
+            )}
+            {isCR && canWrite && (
+              <Link
+                href={`/clients/${id}/disputes/new`}
+                className="shrink-0 rounded-lg bg-primary text-white px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                New Dispute
               </Link>
             )}
           </div>
