@@ -213,15 +213,23 @@ export async function markDisputeSent(disputeId: string): Promise<void> {
 
 export async function recordOutcome(
   disputeItemId: string,
-  outcome: "DELETED" | "REPAIRED" | "VERIFIED" | "NO_RESPONSE"
+  outcome: "DELETED" | "REPAIRED" | "VERIFIED" | "NO_RESPONSE",
+  responseDate?: string,
+  responseNote?: string
 ): Promise<void> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Not authenticated")
   if (!can(session.user.role, "disputes:write")) throw new Error("Forbidden")
 
+  const resolvedAt = responseDate ? new Date(responseDate) : new Date()
+
   const item = await db.disputeItem.update({
     where: { id: disputeItemId },
-    data: { outcome, resolvedAt: new Date() },
+    data: {
+      outcome,
+      resolvedAt,
+      responseNote: responseNote?.trim() || null,
+    },
     include: { dispute: { select: { clientId: true } } },
   })
 
@@ -230,7 +238,7 @@ export async function recordOutcome(
     action: "UPDATE",
     entity: "DisputeItem",
     entityId: disputeItemId,
-    detail: { outcome },
+    detail: { outcome, resolvedAt, responseNote },
   })
 
   const clientId = item.dispute.clientId

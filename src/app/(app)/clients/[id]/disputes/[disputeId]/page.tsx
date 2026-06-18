@@ -213,12 +213,22 @@ export default async function DisputeDetailPage({
                   ) : "—"}
                 </td>
                 <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${DISPUTE_OUTCOME_COLORS[di.outcome] ?? ""}`}>
-                      {DISPUTE_OUTCOME_LABELS[di.outcome] ?? di.outcome}
-                    </span>
-                    {isSent && (
-                      <OutcomeForm disputeItemId={di.id} currentOutcome={di.outcome} />
+                  <div className="flex items-start gap-2 flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${DISPUTE_OUTCOME_COLORS[di.outcome] ?? ""}`}>
+                        {DISPUTE_OUTCOME_LABELS[di.outcome] ?? di.outcome}
+                      </span>
+                      {di.resolvedAt && di.outcome !== "PENDING" && (
+                        <span className="text-xs text-muted">
+                          {di.resolvedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      )}
+                      {isSent && (
+                        <OutcomeForm disputeItemId={di.id} currentOutcome={di.outcome} />
+                      )}
+                    </div>
+                    {di.responseNote && (
+                      <p className="text-xs text-muted italic">{di.responseNote}</p>
                     )}
                   </div>
                 </td>

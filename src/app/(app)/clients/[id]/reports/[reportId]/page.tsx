@@ -3,6 +3,41 @@ import { db } from "@/lib/db"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ITEM_TYPE_LABELS, ITEM_TYPE_SEVERITY, type ItemTypeValue } from "@/lib/report-utils"
+
+// FCRA 7-year SOL: negative items must be removed 7 years after date of first delinquency
+// (bankruptcy = 10 years). We approximate using chargeOffDate || dateOpened.
+function fcraYearsRemaining(item: {
+  type: string
+  chargeOffDate: Date | null
+  dateOpened: Date | null
+}): { years: number; expired: boolean } | null {
+  const limitYears = item.type === "BANKRUPTCY" ? 10 : 7
+  const anchor = item.chargeOffDate ?? item.dateOpened
+  if (!anchor) return null
+  const expiry = new Date(anchor)
+  expiry.setFullYear(expiry.getFullYear() + limitYears)
+  const msLeft = expiry.getTime() - Date.now()
+  const years = Math.round(msLeft / (1000 * 60 * 60 * 24 * 365.25) * 10) / 10
+  return { years, expired: msLeft <= 0 }
+}
+
+const ACCOUNT_STATUS_PILL: Record<string, string> = {
+  OPEN: "bg-danger/10 text-danger",
+  CLOSED: "bg-secondary-soft text-muted",
+  PAID: "bg-success/10 text-success",
+  CHARGED_OFF: "bg-danger/10 text-danger",
+  IN_COLLECTIONS: "bg-danger/10 text-danger",
+  TRANSFERRED: "bg-secondary-soft text-muted",
+}
+
+const ACCOUNT_STATUS_LABEL: Record<string, string> = {
+  OPEN: "Open",
+  CLOSED: "Closed",
+  PAID: "Paid",
+  CHARGED_OFF: "Charged Off",
+  IN_COLLECTIONS: "In Collections",
+  TRANSFERRED: "Transferred",
+}
 import { FlagToggle } from "./FlagToggle"
 
 const OUTCOME_PILL: Record<string, string> = {
@@ -141,9 +176,11 @@ export default async function ReportViewPage({
                   <th className="py-3 px-4 text-center w-12">EXP</th>
                   <th className="py-3 px-4 text-center w-12">EQF</th>
                   <th className="py-3 px-4 text-center w-12">TU</th>
+                  <th className="py-3 px-4 text-left">Account Status</th>
                   <th className="py-3 px-4 text-right">Balance</th>
                   <th className="py-3 px-4 text-left">Opened</th>
-                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-left">FCRA SOL</th>
+                  <th className="py-3 px-4 text-center">Dispute Status</th>
                   <th className="py-3 px-4 text-center w-10">Flag</th>
                 </tr>
               </thead>
@@ -151,6 +188,7 @@ export default async function ReportViewPage({
                 {report.items.map(item => {
                   const severity = ITEM_TYPE_SEVERITY[item.type as ItemTypeValue] ?? "info"
                   const disputeStatus = itemDisputeMap.get(item.id)
+                  const sol = fcraYearsRemaining(item)
                   return (
                     <tr
                       key={item.id}
@@ -185,11 +223,33 @@ export default async function ReportViewPage({
                           )}
                         </td>
                       ))}
+                      <td className="py-3 px-4">
+                        {item.accountStatus ? (
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${ACCOUNT_STATUS_PILL[item.accountStatus] ?? "bg-secondary-soft text-muted"}`}>
+                            {ACCOUNT_STATUS_LABEL[item.accountStatus] ?? item.accountStatus}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted">—</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-right text-ink">
                         {item.balance != null ? `$${Number(item.balance).toLocaleString("en-US", { minimumFractionDigits: 0 })}` : "—"}
                       </td>
                       <td className="py-3 px-4 text-muted text-xs">
                         {item.dateOpened ? item.dateOpened.toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}
+                      </td>
+                      <td className="py-3 px-4 text-xs">
+                        {sol ? (
+                          sol.expired ? (
+                            <span className="font-semibold text-success bg-success/10 px-2 py-0.5 rounded">Expired — Remove</span>
+                          ) : sol.years <= 1 ? (
+                            <span className="font-medium text-warning">{sol.years}y left</span>
+                          ) : (
+                            <span className="text-muted">{sol.years}y left</span>
+                          )
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         {disputeStatus ? (

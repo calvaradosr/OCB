@@ -223,6 +223,11 @@ model ReportItem {
   onTransunion Boolean    @default(false)
   balance      Decimal?   @db.Decimal(12, 2)
   dateOpened   DateTime?
+  // Account lifecycle fields for FCRA SOL calculation
+  accountStatus   String?  // OPEN | CLOSED | PAID | CHARGED_OFF | IN_COLLECTIONS | TRANSFERRED
+  chargeOffDate   DateTime?
+  lastPaymentDate DateTime?
+  highBalance     Decimal?  @db.Decimal(12, 2)
   flagged      Boolean    @default(false) // auto-flag, staff can override
   notes        String?
   disputes     DisputeItem[]
@@ -252,6 +257,7 @@ model DisputeItem {
   sentAt     DateTime?
   dueAt      DateTime? // FCRA 30/45-day clock — automation creates follow-up task at dueAt
   resolvedAt DateTime?
+  responseNote String? // bureau's stated reason, e.g. "Creditor verified" or "Account deleted"
 
   @@unique([disputeId, itemId, bureau])
 }

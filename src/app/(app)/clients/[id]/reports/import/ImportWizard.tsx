@@ -9,6 +9,16 @@ type LocalItem = ImportedItem & { localId: string }
 
 type Step = "method" | "items" | "scores" | "confirm"
 
+const ACCOUNT_STATUSES = [
+  { value: "", label: "— Status —" },
+  { value: "OPEN", label: "Open" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "PAID", label: "Paid" },
+  { value: "CHARGED_OFF", label: "Charged Off" },
+  { value: "IN_COLLECTIONS", label: "In Collections" },
+  { value: "TRANSFERRED", label: "Transferred" },
+]
+
 const EMPTY_ITEM = (): LocalItem => ({
   localId: Math.random().toString(36).slice(2),
   creditorName: "",
@@ -19,6 +29,10 @@ const EMPTY_ITEM = (): LocalItem => ({
   onTransunion: true,
   balance: "",
   dateOpened: "",
+  accountStatus: "",
+  chargeOffDate: "",
+  lastPaymentDate: "",
+  highBalance: "",
   flagged: true,
 })
 
@@ -120,14 +134,17 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-secondary-soft text-xs text-muted uppercase tracking-wide">
-                  <th className="py-2 px-2 text-left w-48">Creditor</th>
-                  <th className="py-2 px-2 text-left w-28">Account #</th>
+                  <th className="py-2 px-2 text-left w-44">Creditor</th>
+                  <th className="py-2 px-2 text-left w-24">Account #</th>
                   <th className="py-2 px-2 text-left w-32">Type</th>
                   <th className="py-2 px-2 text-center">EXP</th>
                   <th className="py-2 px-2 text-center">EQ</th>
                   <th className="py-2 px-2 text-center">TU</th>
+                  <th className="py-2 px-2 text-left w-28">Status</th>
                   <th className="py-2 px-2 text-left w-24">Balance</th>
                   <th className="py-2 px-2 text-left w-28">Opened</th>
+                  <th className="py-2 px-2 text-left w-28">Charge-Off</th>
+                  <th className="py-2 px-2 text-left w-28">Last Pmt</th>
                   <th className="py-2 px-2 text-center">Flag</th>
                   <th className="py-2 px-2 w-8" />
                 </tr>
@@ -173,6 +190,17 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
                       </td>
                     ))}
                     <td className="py-1 px-2">
+                      <select
+                        value={it.accountStatus}
+                        onChange={e => updateItem(it.localId, { accountStatus: e.target.value })}
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {ACCOUNT_STATUSES.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-1 px-2">
                       <input
                         value={it.balance}
                         onChange={e => updateItem(it.localId, { balance: e.target.value })}
@@ -186,6 +214,22 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
                       <input
                         value={it.dateOpened}
                         onChange={e => updateItem(it.localId, { dateOpened: e.target.value })}
+                        type="date"
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </td>
+                    <td className="py-1 px-2">
+                      <input
+                        value={it.chargeOffDate}
+                        onChange={e => updateItem(it.localId, { chargeOffDate: e.target.value })}
+                        type="date"
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </td>
+                    <td className="py-1 px-2">
+                      <input
+                        value={it.lastPaymentDate}
+                        onChange={e => updateItem(it.localId, { lastPaymentDate: e.target.value })}
                         type="date"
                         className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
