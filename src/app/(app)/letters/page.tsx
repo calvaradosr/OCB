@@ -7,6 +7,7 @@ import { BUREAU_LABELS, LETTER_TARGET_LABELS } from "@/lib/report-utils"
 import type { Prisma } from "@prisma/client"
 import MarkSentButton from "./MarkSentButton"
 import TrackingEditor from "./TrackingEditor"
+import { MarkAllSentButton } from "./MarkAllSentButton"
 
 const TARGET_FILTERS = [
   { value: "", label: "All types" },
@@ -41,10 +42,12 @@ export default async function LettersPage({
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   if (!can(session.user.role, "disputes:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const { status = "", target = "", q = "" } = await searchParams
 
-  const where: Prisma.LetterWhereInput = {}
+  const orgFilter = { client: { orgId } }
+  const where: Prisma.LetterWhereInput = { ...orgFilter }
 
   if (status === "unsent") where.sentAt = null
   if (status === "sent") where.sentAt = { not: null }
@@ -52,6 +55,7 @@ export default async function LettersPage({
 
   if (q) {
     where.client = {
+      orgId,
       OR: [
         { firstName: { contains: q, mode: "insensitive" } },
         { lastName: { contains: q, mode: "insensitive" } },
@@ -70,7 +74,7 @@ export default async function LettersPage({
     take: 200,
   })
 
-  const totalUnsent = await db.letter.count({ where: { sentAt: null } })
+  const totalUnsent = await db.letter.count({ where: { sentAt: null, ...orgFilter } })
 
   const canWrite = can(session.user.role, "disputes:write")
 
@@ -91,11 +95,16 @@ export default async function LettersPage({
           <h1 className="text-2xl font-semibold text-ink">Letters</h1>
           <p className="text-sm text-muted mt-0.5">Print queue — view, print, and track delivery of all dispute letters.</p>
         </div>
-        {totalUnsent > 0 && (
-          <span className="px-3 py-1.5 bg-warning/10 text-warning text-sm font-semibold rounded-full">
-            {totalUnsent} unsent
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {totalUnsent > 0 && canWrite && !status && (
+            <MarkAllSentButton count={totalUnsent} />
+          )}
+          {totalUnsent > 0 && (
+            <span className="px-3 py-1.5 bg-warning/10 text-warning text-sm font-semibold rounded-full">
+              {totalUnsent} unsent
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

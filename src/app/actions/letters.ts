@@ -71,3 +71,26 @@ export async function updateLetterTracking(letterId: string, value: string) {
   revalidatePath("/letters")
   return { ok: true }
 }
+
+export async function markAllLettersSent(): Promise<{ count: number } | { error: string }> {
+  const session = await requireDisputes()
+  if (!session) return { error: "Unauthorized" }
+
+  const { orgId } = session.user
+
+  const { count } = await db.letter.updateMany({
+    where: { sentAt: null, client: { orgId } },
+    data: { sentAt: new Date() },
+  })
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    action: "UPDATE",
+    entity: "Letter",
+    entityId: "bulk",
+    detail: { action: "markAllSent", count },
+  })
+
+  revalidatePath("/letters")
+  return { count }
+}
