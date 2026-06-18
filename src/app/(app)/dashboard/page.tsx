@@ -102,6 +102,32 @@ export default async function DashboardPage() {
       ])
     : [null, null]
 
+  // Today's tasks
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay())
+  const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6)
+
+  const todaysTasks = canDisputes
+    ? await Promise.all([
+        // Letters unsent
+        db.letter.findMany({
+          where: { sentAt: null, dispute: { client: { orgId } } },
+          include: { dispute: { include: { client: { select: { firstName: true, lastName: true, id: true } } } } },
+          take: 5,
+          orderBy: { createdAt: "asc" },
+        }),
+        // FCRA clocks due this week
+        db.disputeItem.findMany({
+          where: { outcome: "PENDING", dueAt: { gte: now, lte: endOfWeek }, dispute: { client: { orgId } } },
+          include: { dispute: { include: { client: { select: { firstName: true, lastName: true, id: true } } } } },
+          take: 5,
+          orderBy: { dueAt: "asc" },
+        }),
+      ])
+    : [[], []]
+
+  const [pendingLettersList, fcraThisWeek] = todaysTasks
+
   // Agent productivity
   const agentStats = canClients
     ? await db.user.findMany({
@@ -187,6 +213,59 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Today's Tasks */}
+      {canDisputes && (pendingLettersList.length > 0 || fcraThisWeek.length > 0) && (
+        <div className="bg-white rounded-xl border border-secondary-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-secondary-soft flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">Today&apos;s Tasks</h2>
+            <span className="text-xs text-muted">{pendingLettersList.length + fcraThisWeek.length} items</span>
+          </div>
+          <div className="divide-y divide-secondary-soft">
+            {pendingLettersList.map(letter => (
+              <div key={letter.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
+                  <span className="text-sm text-ink truncate">
+                    Send letters — {letter.dispute.client.firstName} {letter.dispute.client.lastName}
+                  </span>
+                </div>
+                <Link
+                  href={`/clients/${letter.dispute.client.id}/disputes/${letter.dispute.id}`}
+                  className="text-xs text-primary hover:underline shrink-0"
+                >
+                  View →
+                </Link>
+              </div>
+            ))}
+            {fcraThisWeek.map(item => {
+              const dueDate = item.dueAt!
+              const daysLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              return (
+                <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${daysLeft <= 2 ? "bg-danger" : "bg-primary"}`} />
+                    <span className="text-sm text-ink truncate">
+                      FCRA response due — {item.dispute.client.firstName} {item.dispute.client.lastName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs font-medium ${daysLeft <= 2 ? "text-danger" : "text-muted"}`}>
+                      {daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d`}
+                    </span>
+                    <Link
+                      href={`/clients/${item.dispute.client.id}/disputes/${item.dispute.id}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bottom row */}
       <div className="grid grid-cols-3 gap-6">

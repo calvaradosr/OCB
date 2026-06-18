@@ -15,37 +15,51 @@ const NAV = [
 ]
 
 const SETTINGS_NAV = [
-  { href: "/settings",           label: "Overview",  icon: "settings" },
-  { href: "/settings/users",     label: "Users",     icon: "users" },
-  { href: "/settings/audit-log", label: "Audit Log", icon: "audit-log" },
+  { href: "/settings/organization", label: "Organization", icon: "settings" },
+  { href: "/settings/users",        label: "Users",        icon: "users" },
+  { href: "/settings/audit-log",    label: "Audit Log",    icon: "audit-log" },
 ]
 
-export default function Sidebar({ userName, userRole }: { userName: string; userRole: Role }) {
+export default function Sidebar({
+  userName,
+  userRole,
+  overdueCount = 0,
+}: {
+  userName: string
+  userRole: Role
+  overdueCount?: number
+}) {
   const showSettings = can(userRole, "settings:write")
   const initials = userName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
 
   return (
-    <aside className="w-64 shrink-0 min-h-screen bg-white border-r border-secondary-soft flex flex-col">
+    <aside className="w-56 shrink-0 min-h-screen bg-white border-r border-secondary-soft flex flex-col">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-secondary-soft/60">
+      <div className="px-4 py-4 border-b border-secondary-soft/60 h-12 flex items-center">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-white text-sm font-bold">O</span>
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <span className="text-white text-xs font-bold">O</span>
           </div>
           <div>
             <div>
               <span className="text-sm font-bold text-primary">one</span>
               <span className="text-sm font-semibold text-ink"> Consulting</span>
             </div>
-            <div className="text-[9px] tracking-[0.3em] text-muted uppercase leading-none">Business</div>
+            <div className="text-[8px] tracking-[0.3em] text-muted uppercase leading-none">Business</div>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {NAV.map(item => (
-          <NavLink key={item.href} href={item.href} label={item.label} icon={item.icon} />
+          <NavLink
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            badge={item.href === "/disputes" && overdueCount > 0 ? overdueCount : undefined}
+          />
         ))}
 
         {showSettings && (

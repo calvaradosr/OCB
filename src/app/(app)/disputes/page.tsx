@@ -18,12 +18,16 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
 export default async function DisputesDashboard() {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+  const { orgId } = session.user
 
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
+  const clientScope = { client: { orgId } }
+
   const [disputes, totalItems, deletedItems, pendingLetters, roundsThisMonth] = await Promise.all([
     db.dispute.findMany({
+      where: clientScope,
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
         items: { select: { id: true, outcome: true, sentAt: true, dueAt: true } },
@@ -32,10 +36,10 @@ export default async function DisputesDashboard() {
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
-    db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
-    db.disputeItem.count({ where: { outcome: "DELETED" } }),
-    db.letter.count({ where: { sentAt: null } }),
-    db.dispute.count({ where: { createdAt: { gte: startOfMonth } } }),
+    db.disputeItem.count({ where: { outcome: { not: "PENDING" }, dispute: clientScope } }),
+    db.disputeItem.count({ where: { outcome: "DELETED", dispute: clientScope } }),
+    db.letter.count({ where: { sentAt: null, dispute: clientScope } }),
+    db.dispute.count({ where: { ...clientScope, createdAt: { gte: startOfMonth } } }),
   ])
 
   const openDisputes = disputes.filter(d => d.items.some(i => i.outcome === "PENDING")).length
