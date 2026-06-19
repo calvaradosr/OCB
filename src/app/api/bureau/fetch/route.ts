@@ -2,8 +2,9 @@
  * POST /api/bureau/fetch
  *
  * Internal-only route that uses Playwright to log in to a bureau monitoring
- * service, scrape the 3-bureau credit report, and persist results via
- * importReport(). Called by triggerReportFetch() server action.
+ * service, scrape the 3-bureau credit report (accounts + per-bureau scores),
+ * and persist results via persistReport(). Called by the triggerReportFetch()
+ * server action.
  *
  * Required environment variables:
  *   INTERNAL_API_SECRET  — shared secret to authenticate internal calls
@@ -53,6 +54,14 @@ interface ParsedAccount {
   balance: string
   dateOpened: string
 }
+
+interface ParsedScores {
+  experian: number | null
+  equifax: number | null
+  transunion: number | null
+}
+
+const EMPTY_SCORES: ParsedScores = { experian: null, equifax: null, transunion: null }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
@@ -149,7 +158,9 @@ async function runBrowserJob(params: FetchBody): Promise<void> {
     }
 
     if (fetchStatus === "success" && accounts.length > 0) {
-      await persistReport(params.clientId, params.service, accounts)
+      // Scrape scores while still on the report page — best-effort, never fatal
+      const scores = await parseScores(page, params.service).catch(() => EMPTY_SCORES)
+      await persistReport(params.clientId, params.service, accounts, scores)
       await db.bureauCredential.update({
         where: { id: params.credentialId },
         data: {
@@ -775,12 +786,110 @@ async function parseGenericReport(
   return accounts
 }
 
+// ─── Score scraper ────────────────────────────────────────────────────────────
+
+// Which bureaus a given monitoring service exposes scores for. Single-bureau
+// services must not attribute a stray number to the other two bureaus.
+const SCORE_COVERAGE: Record<BureauService, Array<keyof ParsedScores>> = {
+  IDENTITY_IQ: ["experian", "equifax", "transunion"],
+  MY_SCORE_360: ["experian", "equifax", "transunion"],
+  ANNUAL_CREDIT_REPORT: ["experian", "equifax", "transunion"],
+  EXPERIAN: ["experian"],
+  EQUIFAX: ["equifax"],
+  TRANSUNION: ["transunion"],
+}
+
+async function parseScores(page: Page, service: BureauService): Promise<ParsedScores> {
+  const wanted = SCORE_COVERAGE[service] ?? []
+  if (wanted.length === 0) return { ...EMPTY_SCORES }
+
+  // Run entirely in the page context — no TS types available inside evaluate().
+  const found = await page.evaluate(() => {
+    const aliases: Record<string, string[]> = {
+      experian: ["experian"],
+      equifax: ["equifax"],
+      transunion: ["transunion", "trans union"],
+    }
+    const inRange = (n: number) => Number.isFinite(n) && n >= 300 && n <= 850
+    const firstScore = (text: string): number | null => {
+      const matches = (text.match(/\b\d{3}\b/g) ?? []).map(Number).filter(inRange)
+      return matches.length > 0 ? matches[0] : null
+    }
+    const attrHay = (el: Element): string =>
+      `${el.getAttribute("class") ?? ""} ${el.id} ${el.getAttribute("data-bureau") ?? ""}`.toLowerCase()
+    const bureauOf = (hay: string): string | null => {
+      for (const bureau of Object.keys(aliases)) {
+        if (aliases[bureau].some(a => hay.includes(a))) return bureau
+      }
+      return null
+    }
+
+    const result: Record<string, number | null> = {
+      experian: null,
+      equifax: null,
+      transunion: null,
+    }
+
+    // Strategy 1: elements that explicitly look like a score, attributed to a
+    // bureau by walking up a few ancestors.
+    const scoreEls = Array.from(
+      document.querySelectorAll('[class*="score" i], [id*="score" i], [data-score]')
+    )
+    for (const el of scoreEls) {
+      const score = firstScore(el.textContent ?? "")
+      if (score == null) continue
+      let node: Element | null = el
+      for (let depth = 0; node && depth < 5; depth++) {
+        const bureau = bureauOf(attrHay(node))
+        if (bureau && result[bureau] == null) {
+          result[bureau] = score
+          break
+        }
+        node = node.parentElement
+      }
+    }
+
+    // Strategy 2: for any bureau still missing, scan a container whose own
+    // attributes name that bureau and take its first in-range number.
+    for (const bureau of Object.keys(aliases)) {
+      if (result[bureau] != null) continue
+      const selector = aliases[bureau]
+        .map(a => a.replace(/\s+/g, ""))
+        .flatMap(slug => [`[class*="${slug}" i]`, `[id*="${slug}" i]`, `[data-bureau*="${slug}" i]`])
+        .join(", ")
+      let containers: Element[] = []
+      try {
+        containers = Array.from(document.querySelectorAll(selector))
+      } catch {
+        containers = []
+      }
+      for (const el of containers) {
+        const score = firstScore(el.textContent ?? "")
+        if (score != null) {
+          result[bureau] = score
+          break
+        }
+      }
+    }
+
+    return result
+  })
+
+  // Only surface scores for bureaus this service actually covers.
+  return {
+    experian: wanted.includes("experian") ? found.experian : null,
+    equifax: wanted.includes("equifax") ? found.equifax : null,
+    transunion: wanted.includes("transunion") ? found.transunion : null,
+  }
+}
+
 // ─── Persist parsed report to DB ─────────────────────────────────────────────
 
 async function persistReport(
   clientId: string,
   service: BureauService,
-  accounts: ParsedAccount[]
+  accounts: ParsedAccount[],
+  scores: ParsedScores
 ): Promise<void> {
   const sourceMap: Record<BureauService, string> = {
     IDENTITY_IQ: "IDENTITYIQ",
@@ -795,6 +904,9 @@ async function persistReport(
     data: {
       clientId,
       source: sourceMap[service],
+      scoreExperian: scores.experian,
+      scoreEquifax: scores.equifax,
+      scoreTransunion: scores.transunion,
       items: {
         create: accounts.map(acc => ({
           clientId,
