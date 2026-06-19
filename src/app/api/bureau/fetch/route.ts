@@ -7,7 +7,8 @@
  *
  * Required environment variables:
  *   INTERNAL_API_SECRET  — shared secret to authenticate internal calls
- *   NEXTAUTH_URL         — base URL used by triggerReportFetch to reach this route
+ *   AUTH_URL             — base URL used by triggerReportFetch to reach this
+ *                          route (falls back to NEXTAUTH_URL, then localhost:3001)
  *   PII_ENCRYPTION_KEY   — AES-256-GCM key (already required by crypto.ts)
  *
  * Max execution time: 90 seconds (Playwright automation on slow bureau sites).

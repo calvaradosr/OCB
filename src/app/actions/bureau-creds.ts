@@ -166,10 +166,15 @@ export async function triggerReportFetch(
   })
 
   // Fire-and-forget POST to internal fetch API
-  const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000"
+  const baseUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3001"
   const secret = process.env.INTERNAL_API_SECRET ?? ""
 
   // We call fetch without awaiting the body — it runs async in the background
+  const markFailed = (lastError: string) =>
+    db.bureauCredential
+      .update({ where: { id: credentialId }, data: { lastStatus: "failed", lastError } })
+      .catch(() => {})
+
   fetch(`${baseUrl}/api/bureau/fetch`, {
     method: "POST",
     headers: {
@@ -185,15 +190,17 @@ export async function triggerReportFetch(
     }),
     // Node fetch signal for 90-second timeout
     signal: AbortSignal.timeout(90_000),
-  }).catch(() => {
-    // Non-blocking — update status to failed if the request itself failed
-    db.bureauCredential
-      .update({
-        where: { id: credentialId },
-        data: { lastStatus: "failed", lastError: "Internal fetch request failed" },
-      })
-      .catch(() => {})
   })
+    .then(res => {
+      // fetch only rejects on network error — a non-2xx (e.g. 401 secret
+      // mismatch) resolves normally and would otherwise leave the credential
+      // stuck in "pending" forever, with the UI polling indefinitely.
+      if (!res.ok) markFailed(`Fetch service returned ${res.status}`)
+    })
+    .catch(() => {
+      // Non-blocking — update status to failed if the request itself failed
+      markFailed("Internal fetch request failed")
+    })
 
   await writeAuditLog({
     actorId: session.user.id,
