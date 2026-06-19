@@ -32,7 +32,7 @@ export default async function AffiliatePortalPage() {
   const pending = totalEarned - paid
   const activeClients = affiliate.referrals.filter(r => ["ACTIVE", "SIGNED"].includes(r.client.status)).length
 
-  const base = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "http://localhost:3000"
+  const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3001"
   const signupLink = `${base}/signup/${affiliate.code}`
 
   return (

@@ -30,6 +30,12 @@ export default async function AffiliatesPage() {
     0
   )
 
+  // Public base URL for shareable referral links. This project uses AUTH_URL
+  // (NEXTAUTH_URL is unset), so the old default rendered an empty, unshareable
+  // base. Fall back to the dev server port.
+  const baseUrl =
+    process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3001"
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,7 +118,7 @@ export default async function AffiliatesPage() {
 
                 <div className="mt-3 flex items-center gap-4 flex-wrap">
                   <Link href={`/affiliates/${a.id}/edit`} className="text-xs text-primary hover:underline">Edit</Link>
-                  <CopyLinkButton url={`${process.env.NEXTAUTH_URL ?? ""}/signup/${a.code}`} />
+                  <CopyLinkButton url={`${baseUrl}/signup/${a.code}`} />
                 </div>
               </div>
             )

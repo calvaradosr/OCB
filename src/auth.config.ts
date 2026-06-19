@@ -33,6 +33,10 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth
       const pathname = nextUrl.pathname
 
+      // Public routes — affiliate referral landing + lead signup must be
+      // reachable by logged-out prospects, including the /thank-you confirmation.
+      if (pathname.startsWith("/signup")) return true
+
       if (!isLoggedIn) {
         return Response.redirect(new URL("/login", nextUrl))
       }

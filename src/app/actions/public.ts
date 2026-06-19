@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { linkReferral } from "@/app/actions/affiliates"
+import { runAutomations } from "@/lib/automation"
 
 export async function publicLeadSignup(opts: {
   affiliateCode: string
@@ -42,6 +43,14 @@ export async function publicLeadSignup(opts: {
   })
 
   await linkReferral({ clientId: client.id, affiliateCode })
+
+  // Parity with manual lead creation (createClient) — fire welcome/assignment
+  // automations for affiliate-referred leads too. Non-blocking.
+  runAutomations({
+    trigger: "CLIENT_CREATED",
+    clientId: client.id,
+    triggeredBy: client.id,
+  }).catch(() => {})
 
   return { ok: true }
 }
