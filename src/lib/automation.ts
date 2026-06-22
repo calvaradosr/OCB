@@ -13,8 +13,15 @@ export type TriggerContext = {
 // Run all active automations that match the given trigger.
 // Non-blocking: errors in individual actions are logged, not thrown.
 export async function runAutomations(ctx: TriggerContext): Promise<void> {
+  // Scope automations to the client's org; fall back to "ocb" if no client context.
+  let orgId = "ocb"
+  if (ctx.clientId) {
+    const org = await db.client.findUnique({ where: { id: ctx.clientId }, select: { orgId: true } })
+    if (org) orgId = org.orgId
+  }
+
   const automations = await db.automation.findMany({
-    where: { trigger: ctx.trigger, active: true },
+    where: { trigger: ctx.trigger, active: true, orgId },
   })
 
   if (automations.length === 0) return

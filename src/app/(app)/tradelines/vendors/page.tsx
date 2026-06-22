@@ -9,8 +9,10 @@ export default async function VendorsPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "tradelines:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const vendors = await db.tradelineVendor.findMany({
+    where: { orgId },
     include: {
       tradelines: {
         select: {
@@ -34,6 +36,7 @@ export default async function VendorsPage() {
   const vendorStats = await db.tradelineOrder.groupBy({
     by: ["tradelineId"],
     where: {
+      orgId,
       status: { notIn: ["CANCELLED"] },
     },
     _count: { id: true },

@@ -18,6 +18,10 @@ export type ImportedItem = {
   onTransunion: boolean
   balance: string
   dateOpened: string
+  accountStatus: string       // OPEN | CLOSED | PAID | CHARGED_OFF | IN_COLLECTIONS | TRANSFERRED
+  chargeOffDate: string
+  lastPaymentDate: string
+  highBalance: string
   flagged: boolean
 }
 
@@ -62,6 +66,10 @@ export async function importReport(
           onTransunion: item.onTransunion,
           balance: item.balance ? parseFloat(item.balance) : null,
           dateOpened: item.dateOpened ? new Date(item.dateOpened) : null,
+          accountStatus: item.accountStatus || null,
+          chargeOffDate: item.chargeOffDate ? new Date(item.chargeOffDate) : null,
+          lastPaymentDate: item.lastPaymentDate ? new Date(item.lastPaymentDate) : null,
+          highBalance: item.highBalance ? parseFloat(item.highBalance) : null,
           flagged: item.flagged || AUTO_FLAG_TYPES.has(item.type),
         })),
       },

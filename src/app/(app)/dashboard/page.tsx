@@ -39,6 +39,7 @@ export default async function DashboardPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (session.user.role === "AFFILIATE") redirect("/affiliate-portal")
+  const { orgId } = session.user
 
   const canBilling = can(session.user.role, "billing:read")
   const canDisputes = can(session.user.role, "disputes:read")
@@ -52,20 +53,21 @@ export default async function DashboardPage() {
   // Client stats
   const [totalClients, activeClients, leadsThisMonth] = canClients
     ? await Promise.all([
-        db.client.count(),
-        db.client.count({ where: { status: "ACTIVE" } }),
-        db.client.count({ where: { createdAt: { gte: startOfMonth } } }),
+        db.client.count({ where: { orgId } }),
+        db.client.count({ where: { orgId, status: "ACTIVE" } }),
+        db.client.count({ where: { orgId, createdAt: { gte: startOfMonth } } }),
       ])
     : [null, null, null]
 
   // Dispute stats
+  const diScope = { dispute: { client: { orgId } } }
   const [openDisputes, deletedItems, totalResolvedItems, overdueDisputes, pendingLetters] = canDisputes
     ? await Promise.all([
-        db.disputeItem.count({ where: { outcome: "PENDING" } }),
-        db.disputeItem.count({ where: { outcome: "DELETED" } }),
-        db.disputeItem.count({ where: { outcome: { not: "PENDING" } } }),
-        db.disputeItem.count({ where: { outcome: "PENDING", dueAt: { lt: now } } }),
-        db.letter.count({ where: { sentAt: null } }),
+        db.disputeItem.count({ where: { outcome: "PENDING", ...diScope } }),
+        db.disputeItem.count({ where: { outcome: "DELETED", ...diScope } }),
+        db.disputeItem.count({ where: { outcome: { not: "PENDING" }, ...diScope } }),
+        db.disputeItem.count({ where: { outcome: "PENDING", dueAt: { lt: now }, ...diScope } }),
+        db.letter.count({ where: { sentAt: null, client: { orgId } } }),
       ])
     : [null, null, null, null, null]
 
@@ -74,44 +76,72 @@ export default async function DashboardPage() {
     : null
 
   // Billing stats
+  const invoiceOrgScope = { client: { orgId } }
   const [collectedThisMonth, activeSubscriptions, failedInvoices] = canBilling
     ? await Promise.all([
         db.invoice.aggregate({
           _sum: { amountCents: true },
-          where: { status: "PAID", createdAt: { gte: startOfMonth } },
+          where: { status: "PAID", createdAt: { gte: startOfMonth }, ...invoiceOrgScope },
         }).then(r => r._sum.amountCents ?? 0),
-        db.subscription.count({ where: { status: { in: ["active", "trialing"] } } }),
-        db.invoice.count({ where: { status: "FAILED" } }),
+        db.subscription.count({ where: { status: { in: ["active", "trialing"] }, ...invoiceOrgScope } }),
+        db.invoice.count({ where: { status: "FAILED", ...invoiceOrgScope } }),
       ])
     : [null, null, null]
 
   // Loan stats
   const [activeLoanFiles, fundedThisMonth] = canLoans
     ? await Promise.all([
-        db.loanFile.count({ where: { status: { notIn: ["FUNDED", "DECLINED", "WITHDRAWN"] } } }),
-        db.loanFile.count({ where: { status: "FUNDED", statusChangedAt: { gte: startOfMonth } } }),
+        db.loanFile.count({ where: { orgId, status: { notIn: ["FUNDED", "DECLINED", "WITHDRAWN"] } } }),
+        db.loanFile.count({ where: { orgId, status: "FUNDED", statusChangedAt: { gte: startOfMonth } } }),
       ])
     : [null, null]
 
   // Tradeline stats
   const [availableTradelines, activeOrders] = canTradelines
     ? await Promise.all([
-        db.tradeline.count({ where: { active: true, availableAuSpots: { gt: 0 } } }),
-        db.tradelineOrder.count({ where: { status: { in: ["INFO_SENT_TO_VENDOR", "POSTED"] } } }),
+        db.tradeline.count({ where: { orgId, active: true, availableAuSpots: { gt: 0 } } }),
+        db.tradelineOrder.count({ where: { orgId, status: { in: ["INFO_SENT_TO_VENDOR", "POSTED"] } } }),
       ])
     : [null, null]
+
+  // Today's tasks
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay())
+  const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6)
+
+  const todaysTasks = canDisputes
+    ? await Promise.all([
+        // Letters unsent
+        db.letter.findMany({
+          where: { sentAt: null, dispute: { client: { orgId } } },
+          include: { dispute: { include: { client: { select: { firstName: true, lastName: true, id: true } } } } },
+          take: 5,
+          orderBy: { createdAt: "asc" },
+        }),
+        // FCRA clocks due this week
+        db.disputeItem.findMany({
+          where: { outcome: "PENDING", dueAt: { gte: now, lte: endOfWeek }, dispute: { client: { orgId } } },
+          include: { dispute: { include: { client: { select: { firstName: true, lastName: true, id: true } } } } },
+          take: 5,
+          orderBy: { dueAt: "asc" },
+        }),
+      ])
+    : [[], []]
+
+  const [pendingLettersList, fcraThisWeek] = todaysTasks
 
   // Agent productivity
   const agentStats = canClients
     ? await db.user.findMany({
-        where: { role: { in: ["AGENT", "MANAGER"] }, active: true },
-        include: { clients: { select: { status: true }, where: { status: "ACTIVE" } } },
+        where: { orgId, role: { in: ["AGENT", "MANAGER"] }, active: true },
+        include: { clients: { select: { status: true }, where: { orgId, status: "ACTIVE" } } },
       })
     : []
 
   // Recent activity
   const recentActivity = await db.auditLog.findMany({
     where: {
+      orgId,
       action: { in: ["CREATE", "UPDATE"] },
       entity: { in: ["Client", "DisputeItem", "Invoice", "LoanFile", "TradelineOrder"] },
     },
@@ -185,6 +215,59 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Today's Tasks */}
+      {canDisputes && (pendingLettersList.length > 0 || fcraThisWeek.length > 0) && (
+        <div className="bg-white rounded-xl border border-secondary-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-secondary-soft flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">Today&apos;s Tasks</h2>
+            <span className="text-xs text-muted">{pendingLettersList.length + fcraThisWeek.length} items</span>
+          </div>
+          <div className="divide-y divide-secondary-soft">
+            {pendingLettersList.map(letter => (
+              <div key={letter.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
+                  <span className="text-sm text-ink truncate">
+                    Send letters — {letter.dispute?.client.firstName} {letter.dispute?.client.lastName}
+                  </span>
+                </div>
+                <Link
+                  href={letter.dispute ? `/clients/${letter.dispute.client.id}/disputes/${letter.dispute.id}` : "/letters"}
+                  className="text-xs text-primary hover:underline shrink-0"
+                >
+                  View →
+                </Link>
+              </div>
+            ))}
+            {fcraThisWeek.map(item => {
+              const dueDate = item.dueAt!
+              const daysLeft = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              return (
+                <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${daysLeft <= 2 ? "bg-danger" : "bg-primary"}`} />
+                    <span className="text-sm text-ink truncate">
+                      FCRA response due — {item.dispute.client.firstName} {item.dispute.client.lastName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs font-medium ${daysLeft <= 2 ? "text-danger" : "text-muted"}`}>
+                      {daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d`}
+                    </span>
+                    <Link
+                      href={`/clients/${item.dispute.client.id}/disputes/${item.dispute.id}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bottom row */}
       <div className="grid grid-cols-3 gap-6">

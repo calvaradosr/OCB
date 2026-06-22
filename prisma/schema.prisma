@@ -182,6 +182,7 @@ model Client {
   messages        Message[]
   loanFiles         LoanFile[]
   tradelineOrders   TradelineOrder[]
+  bureauCredentials BureauCredential[]
   // Stripe customer id — created on first billing action
   stripeCustomerId String?
   // Portal login: clients authenticate via their own email+password (Role=CLIENT)
@@ -222,6 +223,11 @@ model ReportItem {
   onTransunion Boolean    @default(false)
   balance      Decimal?   @db.Decimal(12, 2)
   dateOpened   DateTime?
+  // Account lifecycle fields for FCRA SOL calculation
+  accountStatus   String?  // OPEN | CLOSED | PAID | CHARGED_OFF | IN_COLLECTIONS | TRANSFERRED
+  chargeOffDate   DateTime?
+  lastPaymentDate DateTime?
+  highBalance     Decimal?  @db.Decimal(12, 2)
   flagged      Boolean    @default(false) // auto-flag, staff can override
   notes        String?
   disputes     DisputeItem[]
@@ -251,6 +257,7 @@ model DisputeItem {
   sentAt     DateTime?
   dueAt      DateTime? // FCRA 30/45-day clock — automation creates follow-up task at dueAt
   resolvedAt DateTime?
+  responseNote String? // bureau's stated reason, e.g. "Creditor verified" or "Account deleted"
 
   @@unique([disputeId, itemId, bureau])
 }
@@ -304,6 +311,8 @@ model Note {
   author    User?    @relation(fields: [authorId], references: [id])
   authorId  String?
   body      String
+  pinned    Boolean  @default(false) // pinned notes surface at the top of the activity feed
+  pinnedAt  DateTime?
   createdAt DateTime @default(now())
 
   @@index([clientId])
@@ -525,8 +534,21 @@ model TradelineOrder {
   @@index([tradelineId, status])
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  slug      String   @unique  // matches orgId on all other models; e.g. "ocb"
+  name      String
+  plan      String   @default("standard")  // standard | pro | enterprise
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug, active])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
+  orgId     String   @default("ocb")
   actor     User?    @relation(fields: [actorId], references: [id])
   actorId   String?
   action    String
@@ -536,6 +558,7 @@ model AuditLog {
   ip        String?
   createdAt DateTime @default(now())
 
+  @@index([orgId, entity, entityId])
   @@index([entity, entityId])
 }
 
@@ -597,4 +620,32 @@ model Referral {
   createdAt       DateTime   @default(now())
 
   @@index([affiliateId, paidAt])
+}
+
+// ─── Bureau Credentials (Auto-Import) ────────────────────────────────────────
+
+enum BureauService {
+  IDENTITY_IQ
+  MY_SCORE_360
+  EXPERIAN
+  EQUIFAX
+  TRANSUNION
+  ANNUAL_CREDIT_REPORT
+}
+
+model BureauCredential {
+  id                String        @id @default(cuid())
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId          String
+  service           BureauService
+  username          String
+  passwordEncrypted String
+  lastFetchAt       DateTime?
+  lastStatus        String?       // "success" | "failed" | "captcha" | "mfa_required" | "pending"
+  lastError         String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([clientId, service])
+  @@index([clientId])
 }

@@ -1,5 +1,4 @@
 {
-  "model": "claude-opus-4-8",
   "permissions": {
     "allow": [
       "Bash(npm install *)",
@@ -43,7 +42,33 @@
       "Bash(curl *)",
       "Bash(CLAUDE_CODE_TMPDIR=/var/folders grep '\"lucide-react\"' \"/Users/calvaradosr/Documents/OCB/OCB NEW CRM - Claude_12-JUN-26/ocb-platform/package.json\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\")",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(awk '/^model Message /{f=1} f{print} f&&/^}/{exit}' prisma/schema.prisma)",
+      "Bash(echo \"===EXIT: $?===\")",
+      "Bash(git checkout *)",
+      "Bash(git restore *)",
+      "Bash(gh pr create --base main --head feat/credit-readiness-bridge --title 'feat\\(M5\\): credit-readiness bridge + funding ledger' --body ' *)",
+      "Bash(git config *)",
+      "Bash(echo \"set to: $\\(git config --global user.email\\)\")",
+      "Bash(git commit *)",
+      "Bash(echo \"name: $\\(git config --global user.name\\)\")",
+      "Bash(echo \"email: $\\(git config --global user.email\\)\")",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(gh pr *)",
+      "Bash(gh run *)",
+      "Bash(npm ci *)",
+      "Bash(echo \"npm ci exit: $?\")",
+      "Bash(echo \"next version: $\\(node -e \"console.log\\(require\\('next/package.json'\\).version\\)\"\\)\")",
+      "Bash(npx next *)",
+      "Bash(grep -iA1 lint)",
+      "Bash(echo \"build exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(echo \"lint exit: $?\")",
+      "Bash(npm uninstall *)",
+      "Bash(echo \"tsc: $?\")",
+      "Bash(echo \"build: $?\")",
+      "Bash(echo \"watch exit: $?\")"
     ]
-  }
+  },
+  "model": "claude-opus-4-8"
 }

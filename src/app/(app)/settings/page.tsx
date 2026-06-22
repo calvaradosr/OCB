@@ -10,24 +10,34 @@ export default async function SettingsPage() {
 
   const items = [
     {
-      href: "/settings/users",
-      title: "Users",
-      desc: "Invite staff, assign roles, reset MFA and passwords.",
+      href: "/settings/organization",
+      title: "Organization",
+      desc: "Manage your organization name, plan, and create new tenant organizations.",
     },
     {
-      href: "/settings/audit-log",
-      title: "Audit Log",
-      desc: "GLBA-required access trail — every view, create, update, and export.",
+      href: "/settings/users",
+      title: "Users & Roles",
+      desc: "Invite staff, assign roles (Admin, Manager, Agent, Loan Processor), reset MFA and passwords.",
+    },
+    {
+      href: "/settings/templates",
+      title: "Letter Templates",
+      desc: "Customize the 12 dispute letter templates used in the dispute wizard. Changes apply per organization.",
     },
     {
       href: "/automations",
       title: "Automations",
-      desc: "Trigger-based rules for email, SMS, tasks, and invoices.",
+      desc: "Trigger-based rules for email, SMS, tasks, and invoices. Set up welcome emails, FCRA reminders, and per-deletion billing.",
     },
     {
       href: "/affiliates",
-      title: "Affiliates",
-      desc: "Manage referral partners and commission payouts.",
+      title: "Affiliates & Referrals",
+      desc: "Manage referral partners, commission rates, and payout tracking.",
+    },
+    {
+      href: "/settings/audit-log",
+      title: "Audit Log",
+      desc: "GLBA-required access trail — every PII view, create, update, and export logged with actor and timestamp.",
     },
   ]
 

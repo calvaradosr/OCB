@@ -21,6 +21,17 @@ export default function SetupForm() {
       )}
 
       <div>
+        <label className="block text-sm font-medium text-ink mb-1">Organization name</label>
+        <input
+          name="orgName"
+          type="text"
+          required
+          placeholder="One Consulting Business"
+          className="w-full rounded-lg border border-secondary-soft px-4 py-2.5 text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      <div>
         <label className="block text-sm font-medium text-ink mb-1">Full name</label>
         <input
           name="name"

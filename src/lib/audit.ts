@@ -3,9 +3,14 @@
 import { db } from "./db"
 import type { Prisma } from "@prisma/client"
 
+export type AuditAction =
+  | "VIEW" | "VIEW_PII" | "CREATE" | "UPDATE" | "DELETE"
+  | "EXPORT" | "LOGIN" | "LOGOUT" | "BULK_MARK_PAID"
+
 export interface AuditParams {
   actorId?: string | null
-  action: "VIEW" | "CREATE" | "UPDATE" | "DELETE" | "EXPORT" | "LOGIN" | "LOGOUT"
+  orgId?: string
+  action: AuditAction
   entity: string
   entityId?: string
   detail?: Prisma.InputJsonValue
@@ -15,6 +20,7 @@ export interface AuditParams {
 export async function writeAuditLog(params: AuditParams): Promise<void> {
   await db.auditLog.create({
     data: {
+      orgId: params.orgId ?? "ocb",
       actorId: params.actorId ?? null,
       action: params.action,
       entity: params.entity,

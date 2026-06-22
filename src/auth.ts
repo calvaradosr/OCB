@@ -45,6 +45,7 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          orgId: user.orgId,
         }
       },
     }),

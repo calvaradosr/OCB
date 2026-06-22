@@ -24,9 +24,10 @@ export default async function TradelineDetailPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "tradelines:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const tradeline = await db.tradeline.findUnique({
-    where: { id },
+    where: { id, orgId },
     include: {
       vendor: true,
       orders: {
@@ -60,7 +61,7 @@ export default async function TradelineDetailPage({
   const verifiedCount = tradeline.orders.filter(o => o.postedVerifiedAt).length
 
   const vendors = await db.tradelineVendor.findMany({
-    where: { active: true },
+    where: { orgId, active: true },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })

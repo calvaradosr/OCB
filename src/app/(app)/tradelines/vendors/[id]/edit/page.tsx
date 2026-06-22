@@ -4,6 +4,7 @@ import { can } from "@/lib/rbac"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import VendorForm from "../../VendorForm"
+import { PayoutsPanel } from "./PayoutsPanel"
 
 export default async function EditVendorPage({
   params,
@@ -17,6 +18,19 @@ export default async function EditVendorPage({
 
   const vendor = await db.tradelineVendor.findUnique({ where: { id } })
   if (!vendor) notFound()
+
+  const unpaidOrders = await db.tradelineOrder.findMany({
+    where: {
+      tradeline: { vendorId: id },
+      vendorPaidAt: null,
+      status: { in: ["POSTED", "REMOVED"] },
+    },
+    include: {
+      client: { select: { firstName: true, lastName: true } },
+      tradeline: { select: { bank: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  })
 
   return (
     <div className="max-w-xl space-y-6">
@@ -35,6 +49,11 @@ export default async function EditVendorPage({
           active: vendor.active,
         }}
       />
+
+      <div>
+        <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Vendor Payouts</h2>
+        <PayoutsPanel vendorId={id} unpaidOrders={unpaidOrders} />
+      </div>
     </div>
   )
 }

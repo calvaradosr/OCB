@@ -39,6 +39,7 @@ export async function createStaffUser(opts: {
       email: opts.email.trim().toLowerCase(),
       passwordHash,
       role: opts.role,
+      orgId: session.user.orgId,
     },
   })
 
@@ -53,12 +54,11 @@ export async function updateStaffUser(
   const session = await requireUserManage()
   if (!session) return { error: "Unauthorized" }
 
-  // Prevent admin from deactivating themselves
   if (userId === session.user.id && opts.active === false) {
     return { error: "You cannot deactivate your own account" }
   }
 
-  await db.user.update({ where: { id: userId }, data: opts })
+  await db.user.update({ where: { id: userId, orgId: session.user.orgId }, data: opts })
   revalidatePath("/settings/users")
   return { ok: true }
 }
@@ -70,7 +70,7 @@ export async function resetUserMfa(
   if (!session) return { error: "Unauthorized" }
 
   await db.user.update({
-    where: { id: userId },
+    where: { id: userId, orgId: session.user.orgId },
     data: { mfaEnabled: false, mfaSecret: null },
   })
 
@@ -88,6 +88,9 @@ export async function resetUserPassword(
   if (newPassword.length < 8) return { error: "Password must be at least 8 characters" }
 
   const passwordHash = await hash(newPassword, 12)
-  await db.user.update({ where: { id: userId }, data: { passwordHash } })
+  await db.user.update({
+    where: { id: userId, orgId: session.user.orgId },
+    data: { passwordHash },
+  })
   return { ok: true }
 }

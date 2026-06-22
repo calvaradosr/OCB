@@ -17,6 +17,7 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.id = user.id
         token.role = user.role
+        token.orgId = user.orgId
       }
       return token
     },
@@ -24,12 +25,17 @@ export const authConfig: NextAuthConfig = {
     session({ session, token }) {
       session.user.id = (token.id as string) ?? ""
       session.user.role = (token.role as Role) ?? "CLIENT"
+      session.user.orgId = (token.orgId as string) ?? "ocb"
       return session
     },
 
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth
       const pathname = nextUrl.pathname
+
+      // Public routes — affiliate referral landing + lead signup must be
+      // reachable by logged-out prospects, including the /thank-you confirmation.
+      if (pathname.startsWith("/signup")) return true
 
       if (!isLoggedIn) {
         return Response.redirect(new URL("/login", nextUrl))

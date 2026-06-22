@@ -12,6 +12,7 @@ import { isCreditReady, CREDIT_READINESS_THRESHOLD } from "@/lib/loan-utils"
 import { AddNoteForm } from "./AddNoteForm"
 import { StatusChanger } from "./StatusChanger"
 import { clockLabel, isOverdue } from "@/lib/fcra"
+import { ScoreChart } from "@/components/ScoreChart"
 
 function ScoreCard({ label, score }: { label: string; score: number | null | undefined }) {
   const color = !score ? "text-muted" : score >= 740 ? "text-success" : score >= 670 ? "text-primary" : score >= 580 ? "text-warning" : "text-danger"
@@ -57,11 +58,12 @@ export default async function ClientProfilePage({
 }) {
   const session = (await auth())!
   if (!can(session.user.role, "clients:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const { id } = await params
 
   const client = await db.client.findUnique({
-    where: { id },
+    where: { id, orgId },
     include: {
       assignedAgent: { select: { id: true, name: true } },
       documents: { orderBy: { createdAt: "desc" } },
@@ -75,7 +77,7 @@ export default async function ClientProfilePage({
   if (!client) notFound()
 
   const auditEvents = await db.auditLog.findMany({
-    where: { entity: "Client", entityId: id },
+    where: { orgId, entity: "Client", entityId: id },
     include: { actor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -88,11 +90,30 @@ export default async function ClientProfilePage({
   const isCR = client.modules.includes("CREDIT_REPAIR")
 
   // Credit Repair data
-  const latestReport = isCR
-    ? await db.creditReport.findFirst({
-        where: { clientId: id },
-        orderBy: { pulledAt: "desc" },
-        include: { _count: { select: { items: true } } },
+  const [latestReport, scoreHistory] = isCR
+    ? await Promise.all([
+        db.creditReport.findFirst({
+          where: { clientId: id },
+          orderBy: { pulledAt: "desc" },
+          include: { _count: { select: { items: true } } },
+        }),
+        db.creditReport.findMany({
+          where: { clientId: id },
+          select: { pulledAt: true, scoreExperian: true, scoreEquifax: true, scoreTransunion: true },
+          orderBy: { pulledAt: "asc" },
+        }),
+      ])
+    : [null, []]
+
+  const bureauCredCount = isCR
+    ? await db.bureauCredential.count({ where: { clientId: id } })
+    : 0
+
+  const latestBureauFetch = isCR
+    ? await db.bureauCredential.findFirst({
+        where: { clientId: id, lastFetchAt: { not: null } },
+        orderBy: { lastFetchAt: "desc" },
+        select: { lastFetchAt: true },
       })
     : null
 
@@ -147,9 +168,18 @@ export default async function ClientProfilePage({
 
   // Loan data
   const loanFiles = await db.loanFile.findMany({
-    where: { clientId: id },
+    where: { orgId, clientId: id },
     select: { id: true, status: true },
   })
+
+  // Tradeline data
+  const canTradelines = can(session.user.role, "tradelines:read")
+  const activeTradelineOrders = canTradelines
+    ? await db.tradelineOrder.count({
+        where: { orgId, clientId: id, status: { notIn: ["REMOVED", "CANCELLED"] } },
+      })
+    : 0
+  const hasTradeline = client.modules.includes("TRADELINE")
   const activeLoanFiles = loanFiles.filter(f => !["FUNDED","DECLINED","WITHDRAWN"].includes(f.status))
   const creditReady = latestReport
     ? isCreditReady({
@@ -164,10 +194,7 @@ export default async function ClientProfilePage({
 
   return (
     <div className="max-w-5xl space-y-6">
-      {/* Breadcrumb */}
-      <Link href="/clients" className="text-sm text-muted hover:text-ink transition-colors">
-        ← Clients
-      </Link>
+      <Link href="/clients" className="text-sm text-muted hover:text-ink transition-colors">← Clients</Link>
 
       {/* Profile header */}
       <div className="bg-white rounded-xl border border-secondary-soft p-6">
@@ -180,8 +207,8 @@ export default async function ClientProfilePage({
               <StatusBadge status={client.status} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-              {client.email && <span>{client.email}</span>}
-              {client.phone && <span>{client.phone}</span>}
+              {client.email && <a href={`mailto:${client.email}`} className="hover:text-primary transition-colors">{client.email}</a>}
+              {client.phone && <a href={`tel:${client.phone}`} className="hover:text-primary transition-colors">{client.phone}</a>}
               {client.assignedAgent && <span>Agent: {client.assignedAgent.name}</span>}
             </div>
             {client.modules.length > 0 && (
@@ -195,12 +222,26 @@ export default async function ClientProfilePage({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href={`/clients/${id}/messages`}
+              className="shrink-0 rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"
+            >
+              Message
+            </Link>
             {canWrite && (
               <Link
                 href={`/clients/${id}/edit`}
                 className="shrink-0 rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"
               >
                 Edit
+              </Link>
+            )}
+            {isCR && canWrite && (
+              <Link
+                href={`/clients/${id}/disputes/new`}
+                className="shrink-0 rounded-lg bg-primary text-white px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                New Dispute
               </Link>
             )}
           </div>
@@ -253,6 +294,14 @@ export default async function ClientProfilePage({
             <ScoreCard label="Equifax" score={latestReport?.scoreEquifax} />
             <ScoreCard label="TransUnion" score={latestReport?.scoreTransunion} />
           </div>
+
+          {/* Score history chart */}
+          {scoreHistory.length > 0 && (
+            <div className="bg-white rounded-xl border border-secondary-soft p-5">
+              <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-3">Score History</p>
+              <ScoreChart reports={scoreHistory} />
+            </div>
+          )}
 
           {/* Workflow progress */}
           <div className="bg-white rounded-xl border border-secondary-soft p-5">
@@ -393,6 +442,29 @@ export default async function ClientProfilePage({
               <span className="text-muted group-hover:text-primary text-lg">→</span>
             </Link>
             <Link
+              href={`/clients/${id}/reports/import?tab=auto`}
+              className="flex items-center justify-between bg-white border border-secondary-soft rounded-xl p-4 hover:border-primary transition-colors group"
+            >
+              <div>
+                <p className="font-semibold text-ink group-hover:text-primary">Bureau Access</p>
+                <p className="text-xs text-muted mt-0.5">
+                  {bureauCredCount > 0
+                    ? `${bureauCredCount} of 6 service${bureauCredCount !== 1 ? "s" : ""} connected`
+                    : "No services connected"}
+                  {latestBureauFetch?.lastFetchAt && (
+                    <>
+                      {" · Last fetch: "}
+                      {new Date(latestBureauFetch.lastFetchAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </>
+                  )}
+                </p>
+              </div>
+              <span className="text-muted group-hover:text-primary text-lg">→</span>
+            </Link>
+            <Link
               href={`/clients/${id}/disputes`}
               className="flex items-center justify-between bg-white border border-secondary-soft rounded-xl p-4 hover:border-primary transition-colors group"
             >
@@ -459,6 +531,35 @@ export default async function ClientProfilePage({
             <span className="text-muted group-hover:text-primary text-lg">→</span>
           </Link>
         )}
+        {canTradelines && (
+          <Link
+            href={`/clients/${id}/tradelines`}
+            className={`flex items-center justify-between rounded-xl p-4 hover:border-primary transition-colors group ${
+              hasTradeline
+                ? "bg-white border border-secondary-soft"
+                : "bg-primary/5 border border-primary/20 hover:bg-primary/10"
+            }`}
+          >
+            <div>
+              <p className="font-semibold text-ink group-hover:text-primary">
+                Tradelines
+                {hasTradeline && activeTradelineOrders > 0 && (
+                  <span className="ml-2 text-xs font-normal bg-secondary-soft text-muted px-1.5 py-0.5 rounded-full">
+                    {activeTradelineOrders} active
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-muted mt-0.5">
+                {hasTradeline
+                  ? activeTradelineOrders > 0
+                    ? "View AU spot orders"
+                    : "No active orders"
+                  : "Boost this client's profile with an AU spot"}
+              </p>
+            </div>
+            <span className="text-muted group-hover:text-primary text-lg">→</span>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -494,7 +595,7 @@ export default async function ClientProfilePage({
         <div className="lg:col-span-2 bg-white rounded-xl border border-secondary-soft p-6 space-y-4">
           <h2 className="font-semibold text-ink">Activity</h2>
           {canWrite && <AddNoteForm clientId={id} />}
-          <ActivityTimeline items={timeline} />
+          <ActivityTimeline items={timeline} canWrite={canWrite} />
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 // Combines Notes and AuditLog entries into a single chronological feed.
+import { PinNoteButton } from "@/app/(app)/clients/[id]/PinNoteButton"
+
 type TimelineItem =
-  | { kind: "note"; id: string; body: string; authorName: string; createdAt: Date }
+  | { kind: "note"; id: string; body: string; authorName: string; createdAt: Date; pinned: boolean }
   | { kind: "event"; id: string; action: string; detail: unknown; actorName: string | null; createdAt: Date }
 
 function formatDate(d: Date) {
@@ -29,7 +31,29 @@ function eventLabel(action: string, detail: unknown): string {
   }
 }
 
-export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
+const NOTE_TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  "[Call]": { label: "Call", cls: "bg-primary/10 text-primary" },
+  "[Email]": { label: "Email", cls: "bg-success/10 text-success" },
+  "[Meeting]": { label: "Meeting", cls: "bg-warning/10 text-warning" },
+  "[Task]": { label: "Task", cls: "bg-secondary text-white" },
+}
+
+function NoteBody({ body }: { body: string }) {
+  for (const [prefix, badge] of Object.entries(NOTE_TYPE_BADGE)) {
+    if (body.startsWith(prefix + " ")) {
+      const text = body.slice(prefix.length + 1)
+      return (
+        <div className="flex gap-2 items-start">
+          <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${badge.cls}`}>{badge.label}</span>
+          <p className="text-sm text-ink whitespace-pre-wrap">{text}</p>
+        </div>
+      )
+    }
+  }
+  return <p className="text-sm text-ink whitespace-pre-wrap">{body}</p>
+}
+
+export function ActivityTimeline({ items, canWrite = false }: { items: TimelineItem[]; canWrite?: boolean }) {
   if (items.length === 0) {
     return <p className="text-sm text-muted py-4">No activity yet.</p>
   }
@@ -49,8 +73,16 @@ export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
           </span>
 
           {item.kind === "note" ? (
-            <div className="bg-secondary-soft rounded-lg p-3">
-              <p className="text-sm text-ink whitespace-pre-wrap">{item.body}</p>
+            <div className={`rounded-lg p-3 ${item.pinned ? "bg-primary/5 border border-primary/20" : "bg-secondary-soft"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {item.pinned && (
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-primary mb-1">Pinned</p>
+                  )}
+                  <NoteBody body={item.body} />
+                </div>
+                {canWrite && <PinNoteButton noteId={item.id} pinned={item.pinned} />}
+              </div>
               <p className="text-xs text-muted mt-1">
                 {item.authorName} · {formatDate(item.createdAt)}
               </p>
@@ -70,9 +102,10 @@ export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
   )
 }
 
-// Merges and sorts notes + audit log entries into one feed, newest first.
+// Merges and sorts notes + audit log entries into one feed: pinned notes first
+// (most-recently-pinned on top), then everything else newest first.
 export function mergeTimeline(
-  notes: Array<{ id: string; body: string; author: { name: string }; createdAt: Date }>,
+  notes: Array<{ id: string; body: string; author: { name: string }; createdAt: Date; pinned: boolean; pinnedAt: Date | null }>,
   events: Array<{
     id: string
     action: string
@@ -87,6 +120,7 @@ export function mergeTimeline(
     body: n.body,
     authorName: n.author.name,
     createdAt: n.createdAt,
+    pinned: n.pinned,
   }))
 
   const eventItems: TimelineItem[] = events.map(e => ({
@@ -98,7 +132,18 @@ export function mergeTimeline(
     createdAt: e.createdAt,
   }))
 
-  return [...noteItems, ...eventItems].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
+  const pinnedAtById = new Map(notes.map(n => [n.id, n.pinnedAt]))
+
+  return [...noteItems, ...eventItems].sort((a, b) => {
+    const aPinned = a.kind === "note" && a.pinned
+    const bPinned = b.kind === "note" && b.pinned
+    if (aPinned && bPinned) {
+      const aAt = pinnedAtById.get(a.id) ?? a.createdAt
+      const bAt = pinnedAtById.get(b.id) ?? b.createdAt
+      return new Date(bAt).getTime() - new Date(aAt).getTime()
+    }
+    if (aPinned) return -1
+    if (bPinned) return 1
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
 }

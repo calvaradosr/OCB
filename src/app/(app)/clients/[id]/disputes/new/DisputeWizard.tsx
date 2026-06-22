@@ -7,6 +7,8 @@ import type { GeneratedLetter } from "@/lib/letters/generate"
 import {
   DISPUTE_STRATEGIES,
   STRATEGY_TEMPLATES,
+  STRATEGY_DEFAULT_REASONS,
+  DISPUTE_REASON_LIBRARY,
   TEMPLATE_LABELS,
   ITEM_TYPE_LABELS,
   BUREAU_LABELS,
@@ -166,8 +168,34 @@ export default function DisputeWizard({
       {/* Step 1 — Select items */}
       {step === 1 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-ink">Select items to dispute</h2>
-          <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to dispute at for each item.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Select items to dispute</h2>
+              <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to dispute at for each item.</p>
+            </div>
+            {items.length > 0 && (
+              <div className="flex gap-2 text-xs">
+                <button
+                  onClick={() => setSelectedIds(new Set(items.map(it => it.id)))}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-muted hover:text-ink hover:border-primary/30 transition-colors"
+                >
+                  Select all
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set(items.filter(it => it.flagged).map(it => it.id)))}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-warning hover:border-warning/50 transition-colors"
+                >
+                  Flagged only
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
 
           {items.length === 0 ? (
             <div className="text-sm text-muted p-8 border border-dashed border-secondary-soft rounded-lg text-center">
@@ -244,9 +272,11 @@ export default function DisputeWizard({
               <select
                 value={strategy}
                 onChange={e => {
-                  setStrategy(e.target.value)
-                  const tpls = STRATEGY_TEMPLATES[e.target.value]
+                  const next = e.target.value
+                  setStrategy(next)
+                  const tpls = STRATEGY_TEMPLATES[next]
                   if (tpls?.length) setTemplateId(tpls[0])
+                  if (STRATEGY_DEFAULT_REASONS[next]) setDefaultReason(STRATEGY_DEFAULT_REASONS[next])
                 }}
                 className="w-full border border-secondary-soft rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
@@ -269,34 +299,84 @@ export default function DisputeWizard({
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1">Default dispute reason</label>
-            <input
-              type="text"
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-ink">Default dispute reason</label>
+            <p className="text-xs text-muted">Pick from the library or write a custom reason. This applies to all selected items (you can override per item below).</p>
+
+            {/* Reason library picker */}
+            <select
+              defaultValue=""
+              onChange={e => { if (e.target.value) setDefaultReason(e.target.value) }}
+              className="w-full border border-secondary-soft rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-muted"
+            >
+              <option value="">— Pick from reason library —</option>
+              {DISPUTE_REASON_LIBRARY.map(cat => (
+                <optgroup key={cat.category} label={cat.category}>
+                  {cat.reasons.map(r => (
+                    <option key={r} value={r}>{r.length > 80 ? r.slice(0, 80) + "…" : r}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+
+            {/* Editable text — shows current selection or custom input */}
+            <textarea
               value={defaultReason}
               onChange={e => setDefaultReason(e.target.value)}
-              className="w-full border border-secondary-soft rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Reason applied to all items"
+              rows={3}
+              className="w-full border border-secondary-soft rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="Reason applied to all selected items"
             />
           </div>
 
-          <div className="border border-secondary-soft rounded-lg divide-y divide-secondary-soft">
-            <p className="px-3 py-2 text-xs font-semibold text-muted uppercase tracking-wide bg-secondary-soft/30">
-              Per-item reasons (optional overrides)
-            </p>
-            {selectedItems.map(it => (
-              <div key={it.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="text-sm text-ink w-48 truncate">{it.creditorName}</span>
-                <input
-                  type="text"
-                  value={itemReasons[it.id] ?? ""}
-                  onChange={e => setItemReasons(prev => ({ ...prev, [it.id]: e.target.value }))}
-                  placeholder={defaultReason}
-                  className="flex-1 text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+          {selectedItems.length > 0 && (
+            <div className="border border-secondary-soft rounded-lg divide-y divide-secondary-soft">
+              <div className="px-3 py-2 bg-secondary-soft/30 flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted uppercase tracking-wide">Per-item reason overrides</p>
+                <p className="text-xs text-muted">Leave blank to use default reason above</p>
               </div>
-            ))}
-          </div>
+              {selectedItems.map(it => (
+                <div key={it.id} className="p-3 space-y-1.5">
+                  <p className="text-xs font-medium text-ink">{it.creditorName}
+                    {it.accountNumberMasked && <span className="text-muted font-normal ml-1">{it.accountNumberMasked}</span>}
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      defaultValue=""
+                      onChange={e => { if (e.target.value) setItemReasons(prev => ({ ...prev, [it.id]: e.target.value })) }}
+                      className="flex-1 text-xs border border-secondary-soft rounded px-2 py-1 text-muted focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">— Library —</option>
+                      {DISPUTE_REASON_LIBRARY.map(cat => (
+                        <optgroup key={cat.category} label={cat.category}>
+                          {cat.reasons.map(r => (
+                            <option key={r} value={r}>{r.length > 70 ? r.slice(0, 70) + "…" : r}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {itemReasons[it.id] && (
+                      <button
+                        type="button"
+                        onClick={() => setItemReasons(prev => { const n = { ...prev }; delete n[it.id]; return n })}
+                        className="text-xs text-muted hover:text-danger px-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {itemReasons[it.id] && (
+                    <textarea
+                      value={itemReasons[it.id]}
+                      onChange={e => setItemReasons(prev => ({ ...prev, [it.id]: e.target.value }))}
+                      rows={2}
+                      className="w-full text-xs border border-primary/30 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary resize-none bg-primary/5"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-sm font-medium text-ink">Regulatory escalations</p>
