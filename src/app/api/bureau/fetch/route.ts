@@ -12,18 +12,36 @@
  *                          route (falls back to NEXTAUTH_URL, then localhost:3001)
  *   PII_ENCRYPTION_KEY   — AES-256-GCM key (already required by crypto.ts)
  *
+ * Optional (selector tuning / debugging):
+ *   BUREAU_DEBUG_CAPTURE — when "1", dump the page HTML + a screenshot to disk
+ *                          whenever parsing fails or finds no accounts, so the
+ *                          real bureau DOM can be inspected and selectors tuned.
+ *                          OFF by default: captured report HTML contains client
+ *                          PII (GLBA), so only enable in a controlled env and
+ *                          purge artifacts afterward.
+ *   BUREAU_DEBUG_DIR     — directory for those artifacts
+ *                          (default: <cwd>/debug-artifacts/bureau).
+ *
  * Max execution time: 90 seconds (Playwright automation on slow bureau sites).
  * This route returns { status: "started" } immediately after launching the
  * browser job; status updates are written directly to BureauCredential.lastStatus.
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { promises as fs } from "fs"
+import path from "path"
 import { db } from "@/lib/db"
 import { AUTO_FLAG_TYPES } from "@/lib/report-utils"
+import { mapAccountType, parseBalance, parseDateString } from "@/lib/bureau-parse"
 import { verifyPostingForClient } from "@/app/actions/tradelines"
 import { autoCreateLoanLead } from "@/app/actions/loans"
 import { runAutomations } from "@/lib/automation"
 import type { BureauService } from "@prisma/client"
+
+// Playwright + fs require the Node runtime (not Edge), and the browser job can
+// run close to the 90s budget set by the caller.
+export const runtime = "nodejs"
+export const maxDuration = 90
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 
@@ -170,22 +188,32 @@ async function runBrowserJob(params: FetchBody): Promise<void> {
         },
       })
     } else if (fetchStatus === "success" && accounts.length === 0) {
-      // No accounts found — treat as a parse failure, not a login failure
+      // No accounts found — treat as a parse failure, not a login failure.
+      // Capture the DOM so the selectors can be tuned against the real page.
+      const artifact = await captureDebugArtifacts(page, params.service, "no-accounts")
       await db.bureauCredential.update({
         where: { id: params.credentialId },
         data: {
           lastStatus: "failed",
           lastFetchAt: new Date(),
-          lastError: "No accounts found on report page — the page structure may have changed",
+          lastError:
+            "No accounts found on report page — the page structure may have changed" +
+            (artifact ? ` (debug: ${artifact})` : ""),
         },
       })
     } else {
+      // A login/CAPTCHA/MFA/other failure — capture the DOM when it's a generic
+      // failure (CAPTCHA/MFA pages are expected and self-explanatory).
+      const artifact =
+        fetchStatus === "failed"
+          ? await captureDebugArtifacts(page, params.service, fetchStatus)
+          : null
       await db.bureauCredential.update({
         where: { id: params.credentialId },
         data: {
           lastStatus: fetchStatus,
           lastFetchAt: new Date(),
-          lastError: fetchError,
+          lastError: artifact ? `${fetchError ?? "Fetch failed"} (debug: ${artifact})` : fetchError,
         },
       })
     }
@@ -210,9 +238,44 @@ class MfaRequiredError extends Error {
   }
 }
 
-// ─── CAPTCHA / MFA detection helpers ─────────────────────────────────────────
+// ─── Debug artifact capture (selector tuning) ────────────────────────────────
 
 import type { Page } from "playwright"
+
+/**
+ * When BUREAU_DEBUG_CAPTURE=1, dump the current page's HTML + a full-page
+ * screenshot to disk so the real bureau DOM can be inspected and the parser's
+ * selectors tuned against it. Returns a short relative path for the lastError
+ * message, or null when capture is disabled or fails.
+ *
+ * Disabled by default: the report HTML contains client PII (GLBA), so this must
+ * only be turned on in a controlled environment and the artifacts purged after.
+ */
+async function captureDebugArtifacts(
+  page: Page,
+  service: BureauService,
+  reason: string
+): Promise<string | null> {
+  if (process.env.BUREAU_DEBUG_CAPTURE !== "1") return null
+  try {
+    const dir =
+      process.env.BUREAU_DEBUG_DIR ?? path.join(process.cwd(), "debug-artifacts", "bureau")
+    await fs.mkdir(dir, { recursive: true })
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const base = `${service}-${reason}-${stamp}`
+
+    const html = await page.content()
+    await fs.writeFile(path.join(dir, `${base}.html`), html, "utf8")
+    await page.screenshot({ path: path.join(dir, `${base}.png`), fullPage: true }).catch(() => {})
+
+    return path.join("debug-artifacts", "bureau", `${base}.html`)
+  } catch {
+    return null
+  }
+}
+
+// ─── CAPTCHA / MFA detection helpers ─────────────────────────────────────────
 
 async function checkForCaptchaOrMfa(page: Page): Promise<void> {
   const title = (await page.title()).toLowerCase()
@@ -353,8 +416,7 @@ async function parseIdentityIQReport(page: Page): Promise<ParsedAccount[]> {
 
       // Balance
       const balEl = await row.$(".balance, [data-balance], [class*='balance']")
-      const balanceText = (await balEl?.textContent())?.trim() ?? ""
-      const balance = balanceText.replace(/[^0-9.]/g, "")
+      const balance = parseBalance((await balEl?.textContent())?.trim() ?? "")
 
       // Date opened
       const dateEl = await row.$(
@@ -369,14 +431,13 @@ async function parseIdentityIQReport(page: Page): Promise<ParsedAccount[]> {
       const eqEl = await row.$(".eq, .eqf, .equifax, [class*='eq-'], [data-bureau='equifax']")
       const tuEl = await row.$(".tu, .transunion, [class*='tu-'], [data-bureau='transunion']")
 
-      // If no bureau-specific elements, check for "negative" or "reporting" indicators
-      // Fall back to checking if the account has any negative status text
-      const rowText = (await row.textContent()) ?? ""
-      const hasNegative = /negative|collection|charge.?off|derogatory|past due/i.test(rowText)
-
-      const onExperian = expEl ? await isBureauReporting(expEl) : hasNegative
-      const onEquifax = eqEl ? await isBureauReporting(eqEl) : hasNegative
-      const onTransunion = tuEl ? await isBureauReporting(tuEl) : hasNegative
+      // When per-bureau elements exist, trust their "is reporting" signal.
+      // Otherwise default to present on all three: this is IdentityIQ's
+      // 3-bureau report, so an account with no per-bureau breakdown should
+      // appear under every bureau (not be silently dropped from all of them).
+      const onExperian = expEl ? await isBureauReporting(expEl) : true
+      const onEquifax = eqEl ? await isBureauReporting(eqEl) : true
+      const onTransunion = tuEl ? await isBureauReporting(tuEl) : true
 
       accounts.push({
         creditorName,
@@ -422,7 +483,7 @@ async function parseIdentityIQTable(page: Page): Promise<ParsedAccount[]> {
 
         const accountNumberMasked = cells[1] ?? ""
         const typeText = (cells[2] ?? "").toUpperCase()
-        const balance = (cells[3] ?? "").replace(/[^0-9.]/g, "")
+        const balance = parseBalance(cells[3] ?? "")
         const dateOpened = parseDateString(cells[4] ?? "")
 
         accounts.push({
@@ -731,7 +792,7 @@ async function parseGenericReport(
       const typeText = ((await typeEl?.textContent())?.trim() ?? "").toUpperCase()
 
       const balEl = await container.$(".balance, .amount, [class*='balance']")
-      const balance = ((await balEl?.textContent())?.trim() ?? "").replace(/[^0-9.]/g, "")
+      const balance = parseBalance((await balEl?.textContent())?.trim() ?? "")
 
       const dateEl = await container.$(
         ".date-opened, [class*='date-opened'], .open-date"
@@ -772,7 +833,7 @@ async function parseGenericReport(
             onExperian,
             onEquifax,
             onTransunion,
-            balance: (cells[3] ?? "").replace(/[^0-9.]/g, ""),
+            balance: parseBalance(cells[3] ?? ""),
             dateOpened: parseDateString(cells[4] ?? ""),
           })
         } catch {
@@ -934,46 +995,5 @@ async function persistReport(
   runAutomations({ trigger: "REPORT_IMPORTED", clientId, triggeredBy: report.id }).catch(() => {})
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function mapAccountType(raw: string): string {
-  if (/collection/i.test(raw)) return "COLLECTION"
-  if (/charge.?off|chargeoff/i.test(raw)) return "CHARGE_OFF"
-  if (/late|30 day|60 day|90 day/i.test(raw)) return "LATE_PAYMENT"
-  if (/inquiry/i.test(raw)) return "INQUIRY"
-  if (/repossess/i.test(raw)) return "REPOSSESSION"
-  if (/bankrupt/i.test(raw)) return "BANKRUPTCY"
-  if (/judgment/i.test(raw)) return "JUDGMENT"
-  if (/tax.?lien|lien/i.test(raw)) return "TAX_LIEN"
-  if (/personal|name|address|employment|ssn/i.test(raw)) return "PERSONAL_INFO"
-  return "OTHER"
-}
-
-function parseDateString(raw: string): string {
-  if (!raw) return ""
-  // Try common date formats: MM/YYYY, MM/DD/YYYY, Month YYYY, etc.
-  const monthYear = raw.match(/(\w+)\s+(\d{4})/)
-  if (monthYear) {
-    const months: Record<string, string> = {
-      january: "01", february: "02", march: "03", april: "04",
-      may: "05", june: "06", july: "07", august: "08",
-      september: "09", october: "10", november: "11", december: "12",
-      jan: "01", feb: "02", mar: "03", apr: "04",
-      jun: "06", jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
-    }
-    const month = months[monthYear[1].toLowerCase()]
-    const year = monthYear[2]
-    if (month && year) return `${year}-${month}-01`
-  }
-  // Try MM/DD/YYYY or MM/YYYY
-  const slashDate = raw.match(/(\d{1,2})\/(\d{1,2}|\d{4})(?:\/(\d{4}))?/)
-  if (slashDate) {
-    const [, m, d, y] = slashDate
-    if (y) return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`
-    if (d.length === 4) return `${d}-${m.padStart(2, "0")}-01`
-  }
-  // Try ISO-ish
-  const isoDate = raw.match(/(\d{4})-(\d{2})-(\d{2})/)
-  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`
-  return ""
-}
+// mapAccountType, parseBalance, and parseDateString now live in
+// @/lib/bureau-parse (pure + unit-tested).
