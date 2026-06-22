@@ -63,7 +63,13 @@ export async function updateVendor(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  await db.tradelineVendor.update({ where: { id: vendorId }, data: opts })
+  // Scope to caller's org so one tenant can't update another tenant's vendor.
+  const res = await db.tradelineVendor.updateMany({
+    where: { id: vendorId, orgId: session.user.orgId },
+    data: opts,
+  })
+  if (res.count === 0) return { error: "Vendor not found" }
+
   revalidatePath("/tradelines/vendors")
   return { ok: true }
 }
@@ -205,7 +211,7 @@ export async function advanceOrderStatus(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const order = await db.tradelineOrder.findUnique({ where: { id: orderId } })
+  const order = await db.tradelineOrder.findFirst({ where: { id: orderId, orgId: session.user.orgId } })
   if (!order) return { error: "Order not found" }
 
   if (!canOrderTransition(order.status, newStatus)) {
@@ -245,7 +251,7 @@ export async function markVendorPaid(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const order = await db.tradelineOrder.findUnique({ where: { id: orderId } })
+  const order = await db.tradelineOrder.findFirst({ where: { id: orderId, orgId: session.user.orgId } })
   if (!order) return { error: "Order not found" }
 
   await db.tradelineOrder.update({
@@ -274,8 +280,10 @@ export async function revealAuPacket(orderId: string): Promise<
   const session = await requireTradelineRead()
   if (!session) return { error: "Unauthorized" }
 
-  const order = await db.tradelineOrder.findUnique({
-    where: { id: orderId },
+  // Scope to caller's org — this returns decrypted SSN/DOB, so a missing
+  // tenant check here is a cross-tenant PII disclosure.
+  const order = await db.tradelineOrder.findFirst({
+    where: { id: orderId, orgId: session.user.orgId },
     include: {
       tradeline: { include: { vendor: { select: { name: true } } } },
     },
@@ -311,6 +319,7 @@ export async function markVendorPaidBulk(
 
   const orders = await db.tradelineOrder.findMany({
     where: {
+      orgId: session.user.orgId,
       tradeline: { vendorId },
       vendorPaidAt: null,
       status: { in: ["POSTED", "REMOVED"] },
