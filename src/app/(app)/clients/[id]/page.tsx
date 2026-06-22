@@ -595,7 +595,7 @@ export default async function ClientProfilePage({
         <div className="lg:col-span-2 bg-white rounded-xl border border-secondary-soft p-6 space-y-4">
           <h2 className="font-semibold text-ink">Activity</h2>
           {canWrite && <AddNoteForm clientId={id} />}
-          <ActivityTimeline items={timeline} />
+          <ActivityTimeline items={timeline} canWrite={canWrite} />
         </div>
       </div>
     </div>

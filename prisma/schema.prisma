@@ -311,6 +311,8 @@ model Note {
   author    User?    @relation(fields: [authorId], references: [id])
   authorId  String?
   body      String
+  pinned    Boolean  @default(false) // pinned notes surface at the top of the activity feed
+  pinnedAt  DateTime?
   createdAt DateTime @default(now())
 
   @@index([clientId])
