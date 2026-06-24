@@ -146,11 +146,10 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
               if (file) handleCrcUpload(file)
             }}
           />
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {[
               { key: "crc", title: "CreditRepairCloud Report", desc: "Upload the HTML report exported from CreditRepairCloud. Items and scores are parsed for review." },
               { key: "manual", title: "Manual Entry", desc: "Enter items by hand. Best for transcribing a physical report." },
-              { key: "csv", title: "CSV Upload", desc: "Upload a structured CSV file. Format available below." },
             ].map(opt => (
               <button
                 key={opt.key}
