@@ -126,9 +126,9 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="grid grid-cols-3 gap-4">
             {[
+              { label: "TransUnion", score: latestReport.scoreTransunion, history: reports.map(r => r.scoreTransunion).reverse(), color: "#3b82f6" },
               { label: "Experian", score: latestReport.scoreExperian, history: reports.map(r => r.scoreExperian).reverse(), color: "#A8862B" },
               { label: "Equifax", score: latestReport.scoreEquifax, history: reports.map(r => r.scoreEquifax).reverse(), color: "#22c55e" },
-              { label: "TransUnion", score: latestReport.scoreTransunion, history: reports.map(r => r.scoreTransunion).reverse(), color: "#3b82f6" },
             ].map(({ label, score, history, color }) => (
               <div key={label} className="text-center">
                 <p className="text-xs text-muted uppercase tracking-widest mb-2">{label}</p>
@@ -191,9 +191,9 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
               <tr className="text-xs text-muted uppercase tracking-wide">
                 <th className="py-3 px-5 text-left">Date</th>
                 <th className="py-3 px-5 text-left">Source</th>
+                <th className="py-3 px-5 text-center">TransUnion</th>
                 <th className="py-3 px-5 text-center">Experian</th>
                 <th className="py-3 px-5 text-center">Equifax</th>
-                <th className="py-3 px-5 text-center">TransUnion</th>
                 <th className="py-3 px-5 text-center">Items</th>
                 <th className="py-3 px-5 text-center">Flagged</th>
                 <th className="py-3 px-5" />
@@ -210,13 +210,13 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
                     {r.source.replace(/_/g, " ")}
                   </td>
                   <td className="py-3 px-5 text-center">
+                    {r.scoreTransunion ? <ScorePill score={r.scoreTransunion} /> : <span className="text-muted">—</span>}
+                  </td>
+                  <td className="py-3 px-5 text-center">
                     {r.scoreExperian ? <ScorePill score={r.scoreExperian} /> : <span className="text-muted">—</span>}
                   </td>
                   <td className="py-3 px-5 text-center">
                     {r.scoreEquifax ? <ScorePill score={r.scoreEquifax} /> : <span className="text-muted">—</span>}
-                  </td>
-                  <td className="py-3 px-5 text-center">
-                    {r.scoreTransunion ? <ScorePill score={r.scoreTransunion} /> : <span className="text-muted">—</span>}
                   </td>
                   <td className="py-3 px-5 text-center text-muted">{r._count.items}</td>
                   <td className="py-3 px-5 text-center">

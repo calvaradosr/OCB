@@ -31,9 +31,9 @@ type Step = 1 | 2 | 3 | 4
 
 function bureausForItem(item: ItemForWizard): BureauValue[] {
   const b: BureauValue[] = []
+  if (item.onTransunion) b.push("TRANSUNION")
   if (item.onExperian) b.push("EXPERIAN")
   if (item.onEquifax) b.push("EQUIFAX")
-  if (item.onTransunion) b.push("TRANSUNION")
   return b
 }
 
@@ -227,7 +227,7 @@ export default function DisputeWizard({
                       </div>
                       {isSelected && bureaus.length > 0 && (
                         <div className="flex gap-3 mt-2">
-                          {(["EXPERIAN", "EQUIFAX", "TRANSUNION"] as BureauValue[]).map(b => (
+                          {(["TRANSUNION", "EXPERIAN", "EQUIFAX"] as BureauValue[]).map(b => (
                             bureaus.includes(b) ? (
                               <label key={b} className="flex items-center gap-1 text-xs cursor-pointer">
                                 <input

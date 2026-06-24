@@ -290,9 +290,9 @@ export default async function ClientProfilePage({
         <div className="space-y-4">
           {/* Score cards */}
           <div className="grid grid-cols-3 gap-4">
+            <ScoreCard label="TransUnion" score={latestReport?.scoreTransunion} />
             <ScoreCard label="Experian" score={latestReport?.scoreExperian} />
             <ScoreCard label="Equifax" score={latestReport?.scoreEquifax} />
-            <ScoreCard label="TransUnion" score={latestReport?.scoreTransunion} />
           </div>
 
           {/* Score history chart */}

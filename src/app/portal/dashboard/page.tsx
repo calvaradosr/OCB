@@ -114,7 +114,7 @@ export default async function PortalDashboard() {
 
       {/* Score summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        {(["Experian", "Equifax", "TransUnion"] as const).map(bureau => {
+        {(["TransUnion", "Experian", "Equifax"] as const).map(bureau => {
           const key = `score${bureau}` as "scoreExperian" | "scoreEquifax" | "scoreTransunion"
           const score = latestReport?.[key]
           const prevReport = reports.at(-2)

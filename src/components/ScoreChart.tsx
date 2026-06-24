@@ -12,9 +12,9 @@ type Props = {
 }
 
 const SERIES = [
+  { key: "scoreTransunion" as const, label: "TU", color: "#27AE60" },
   { key: "scoreExperian" as const, label: "EXP", color: "#E74C3C" },
   { key: "scoreEquifax" as const, label: "EQF", color: "#2980B9" },
-  { key: "scoreTransunion" as const, label: "TU", color: "#27AE60" },
 ]
 
 const W = 560

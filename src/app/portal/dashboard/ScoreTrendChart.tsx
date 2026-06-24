@@ -58,9 +58,9 @@ export default function ScoreTrendChart({ data }: { data: DataPoint[] }) {
     })
 
     const SERIES = [
+      { key: "transunion" as const, color: "#C77B22" },
       { key: "experian" as const, color: "#A8862B" },
       { key: "equifax" as const, color: "#3E7C4A" },
-      { key: "transunion" as const, color: "#C77B22" },
     ]
 
     SERIES.forEach(({ key, color }) => {
@@ -89,7 +89,7 @@ export default function ScoreTrendChart({ data }: { data: DataPoint[] }) {
     })
 
     // Legend
-    const LABELS = ["Experian", "Equifax", "TransUnion"]
+    const LABELS = ["TransUnion", "Experian", "Equifax"]
     SERIES.forEach(({ color }, i) => {
       const lx = PAD.left + i * 100
       const ly = H - 4

@@ -302,9 +302,9 @@ export default async function ClientsPage({
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Client</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Agent</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">TU</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EXP</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EQF</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">TU</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Round</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Last Activity</th>
               </tr>
@@ -341,17 +341,17 @@ export default async function ClientsPage({
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Link href={`/clients/${c.id}`} className="block">
+                        <ScorePill score={report?.scoreTransunion} />
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
                         <ScorePill score={report?.scoreExperian} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Link href={`/clients/${c.id}`} className="block">
                         <ScorePill score={report?.scoreEquifax} />
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Link href={`/clients/${c.id}`} className="block">
-                        <ScorePill score={report?.scoreTransunion} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-center">

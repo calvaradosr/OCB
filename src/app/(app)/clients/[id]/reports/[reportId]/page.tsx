@@ -121,9 +121,9 @@ export default async function ReportViewPage({
       {(report.scoreExperian || report.scoreEquifax || report.scoreTransunion) && (
         <div className="grid grid-cols-3 gap-4">
           {[
+            { label: "TransUnion", score: report.scoreTransunion },
             { label: "Experian", score: report.scoreExperian },
             { label: "Equifax", score: report.scoreEquifax },
-            { label: "TransUnion", score: report.scoreTransunion },
           ].map(({ label, score }) => (
             <div key={label} className="bg-white border border-secondary-soft rounded-xl p-4 text-center">
               <p className="text-xs text-muted uppercase tracking-widest mb-2">{label}</p>
@@ -162,7 +162,9 @@ export default async function ReportViewPage({
       <div className="bg-white border border-secondary-soft rounded-xl overflow-hidden">
         <div className="bg-secondary-soft/30 px-5 py-3 flex items-center justify-between border-b border-secondary-soft">
           <h2 className="font-semibold text-ink">Account Grid</h2>
-          <span className="text-xs text-muted">Click 🚩 to flag an item for dispute</span>
+          <span className="text-xs text-muted flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-danger align-middle" /> = reporting on bureau · click 🚩 to flag for dispute
+          </span>
         </div>
         {report.items.length === 0 ? (
           <p className="text-sm text-muted p-8 text-center">No items in this report.</p>
@@ -173,9 +175,9 @@ export default async function ReportViewPage({
                 <tr className="text-xs text-muted uppercase tracking-wide">
                   <th className="py-3 px-4 text-left">Creditor / Account</th>
                   <th className="py-3 px-4 text-left">Type</th>
+                  <th className="py-3 px-4 text-center w-12">TU</th>
                   <th className="py-3 px-4 text-center w-12">EXP</th>
                   <th className="py-3 px-4 text-center w-12">EQF</th>
-                  <th className="py-3 px-4 text-center w-12">TU</th>
                   <th className="py-3 px-4 text-left">Account Status</th>
                   <th className="py-3 px-4 text-right">Balance</th>
                   <th className="py-3 px-4 text-left">Opened</th>
@@ -214,12 +216,20 @@ export default async function ReportViewPage({
                           {ITEM_TYPE_LABELS[item.type as ItemTypeValue] ?? item.type}
                         </span>
                       </td>
-                      {[item.onExperian, item.onEquifax, item.onTransunion].map((present, i) => (
-                        <td key={i} className="py-3 px-4 text-center">
+                      {([
+                        ["TransUnion", item.onTransunion],
+                        ["Experian", item.onExperian],
+                        ["Equifax", item.onEquifax],
+                      ] as const).map(([bureau, present]) => (
+                        <td key={bureau} className="py-3 px-4 text-center">
                           {present ? (
-                            <span className="text-danger font-bold">✕</span>
+                            <span
+                              className="inline-block w-2.5 h-2.5 rounded-full bg-danger align-middle"
+                              title={`Reporting on ${bureau}`}
+                              aria-label={`Reporting on ${bureau}`}
+                            />
                           ) : (
-                            <span className="text-success font-bold">✓</span>
+                            <span className="text-muted" aria-label={`Not reporting on ${bureau}`}>–</span>
                           )}
                         </td>
                       ))}
