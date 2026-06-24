@@ -30,6 +30,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { promises as fs } from "fs"
 import path from "path"
+import { timingSafeEqual } from "crypto"
 import { db } from "@/lib/db"
 import { AUTO_FLAG_TYPES } from "@/lib/report-utils"
 import {
@@ -52,11 +53,21 @@ export const maxDuration = 90
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 
+// Constant-time string compare to avoid leaking the secret via response timing.
+// timingSafeEqual requires equal-length buffers, so guard on length first (the
+// length of a bearer token is not itself sensitive).
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
+}
+
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.INTERNAL_API_SECRET
   if (!secret) return false
   const auth = req.headers.get("authorization") ?? ""
-  return auth === `Bearer ${secret}`
+  return safeEqual(auth, `Bearer ${secret}`)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
