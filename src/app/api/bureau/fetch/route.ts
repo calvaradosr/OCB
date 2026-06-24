@@ -14,8 +14,9 @@
  *
  * Optional (selector tuning / debugging):
  *   BUREAU_DEBUG_CAPTURE — when "1", dump the page HTML + a screenshot to disk
- *                          whenever parsing fails or finds no accounts, so the
- *                          real bureau DOM can be inspected and selectors tuned.
+ *                          after every fetch (success, no-accounts, or failure),
+ *                          so the real bureau DOM can be inspected and selectors
+ *                          tuned even when the current selectors partially work.
  *                          OFF by default: captured report HTML contains client
  *                          PII (GLBA), so only enable in a controlled env and
  *                          purge artifacts afterward.
@@ -183,6 +184,10 @@ async function runBrowserJob(params: FetchBody): Promise<void> {
       // Scrape scores while still on the report page — best-effort, never fatal
       const scores = await parseScores(page, params.service).catch(() => EMPTY_SCORES)
       await persistReport(params.clientId, params.service, accounts, scores)
+      // When BUREAU_DEBUG_CAPTURE=1, also dump the DOM on success so a real
+      // report can be captured for selector tuning/verification even when the
+      // current selectors partially work (no-op when the flag is off).
+      await captureDebugArtifacts(page, params.service, "success")
       await db.bureauCredential.update({
         where: { id: params.credentialId },
         data: {
