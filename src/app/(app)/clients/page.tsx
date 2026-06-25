@@ -134,6 +134,8 @@ export default async function ClientsPage({
         ? Math.max(r.scoreExperian ?? 0, r.scoreEquifax ?? 0, r.scoreTransunion ?? 0) || null
         : null
       const lastActivity = kdMap.get(c.id)?.createdAt ?? new Date(c.createdAt)
+      // Server component: rendered once per request, so reading the clock here is safe.
+      // eslint-disable-next-line react-hooks/purity
       const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
       return {
         id: c.id,

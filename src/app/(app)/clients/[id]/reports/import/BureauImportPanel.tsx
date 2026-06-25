@@ -374,7 +374,7 @@ export default function BureauImportPanel({
         <div>
           <h2 className="text-base font-semibold text-ink">Bureau Auto-Import</h2>
           <p className="text-sm text-muted mt-0.5">
-            Store login credentials for bureau monitoring services. Click "Fetch Now" to automatically pull a 3-bureau report.
+            Store login credentials for bureau monitoring services. Click &quot;Fetch Now&quot; to automatically pull a 3-bureau report.
           </p>
         </div>
         <span className="text-xs text-muted bg-secondary-soft px-2 py-1 rounded-full">

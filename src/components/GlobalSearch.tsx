@@ -27,33 +27,54 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Cmd+K / Ctrl+K to open
+  // Reset transient palette state in the handler when opening (not in an effect)
+  // so we don't trigger a synchronous setState-in-effect cascade.
+  function openSearch() {
+    setQuery("")
+    setResults([])
+    setSelected(0)
+    setOpen(true)
+  }
+
+  // Cmd+K / Ctrl+K toggles the palette; Escape closes it.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
-        setOpen(o => !o)
+        if (open) {
+          setOpen(false)
+        } else {
+          // Inline (not via openSearch) so the effect only closes over `open`
+          // and the stable state setters — keeps the dep array exhaustive.
+          setQuery("")
+          setResults([])
+          setSelected(0)
+          setOpen(true)
+        }
       }
       if (e.key === "Escape") setOpen(false)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50)
-      setQuery("")
-      setResults([])
-      setSelected(0)
-    }
   }, [open])
 
+  // Focus the input when the palette opens (no setState here).
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return }
+    if (open) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [open])
+
+  // Debounced search. All state updates happen inside the timeout (async), so
+  // there is no synchronous setState in the effect body.
+  useEffect(() => {
+    const q = query.trim()
     const timeout = setTimeout(() => {
+      if (!q) {
+        setResults([])
+        setSelected(0)
+        return
+      }
       startTransition(async () => {
-        const res = await search(query)
+        const res = await search(q)
         setResults(res)
         setSelected(0)
       })
@@ -83,7 +104,7 @@ export function GlobalSearch() {
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openSearch}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-secondary-soft text-sm text-muted hover:text-ink hover:border-primary/30 transition-all bg-white"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
