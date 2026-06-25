@@ -12,22 +12,23 @@ export default async function NewLoanPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:write")) redirect("/loans")
+  const { orgId } = session.user
 
   const { clientId } = await searchParams
 
   const [clients, lenders, processors] = await Promise.all([
     db.client.findMany({
-      where: { status: { not: "LEAD" } },
+      where: { orgId, status: { not: "LEAD" } },
       select: { id: true, firstName: true, lastName: true, status: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     db.lender.findMany({
-      where: { active: true },
+      where: { orgId, active: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
     db.user.findMany({
-      where: { role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
+      where: { orgId, role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),

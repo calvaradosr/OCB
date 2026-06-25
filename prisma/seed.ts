@@ -24,6 +24,14 @@ const LETTER_TEMPLATES = [
 ]
 
 async function main() {
+  // ── Organization ───────────────────────────────────────────────────────────
+  await db.organization.upsert({
+    where: { slug: "ocb" },
+    update: {},
+    create: { slug: "ocb", name: "One Consulting Business", plan: "standard" },
+  })
+  console.log("  Organization seeded: ocb")
+
   // ── Staff accounts ─────────────────────────────────────────────────────────
   const adminHash = await bcrypt.hash("Admin@OCB2026!", 12)
   const admin = await db.user.upsert({

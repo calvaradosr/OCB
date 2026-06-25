@@ -3,13 +3,16 @@ import { redirect } from "next/navigation"
 import { can } from "@/lib/rbac"
 import { db } from "@/lib/db"
 import Link from "next/link"
+import { CopyLinkButton } from "./CopyLinkButton"
 
 export default async function AffiliatesPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "clients:write")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const affiliates = await db.affiliate.findMany({
+    where: { orgId },
     include: {
       user: { select: { name: true, email: true } },
       referrals: {
@@ -26,6 +29,12 @@ export default async function AffiliatesPage() {
     sum + a.referrals.filter(r => !r.paidAt && r.commissionCents).reduce((s, r) => s + (r.commissionCents ?? 0), 0),
     0
   )
+
+  // Public base URL for shareable referral links. This project uses AUTH_URL
+  // (NEXTAUTH_URL is unset), so the old default rendered an empty, unshareable
+  // base. Fall back to the dev server port.
+  const baseUrl =
+    process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3001"
 
   return (
     <div className="space-y-6">
@@ -107,8 +116,9 @@ export default async function AffiliatesPage() {
                   </div>
                 )}
 
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex items-center gap-4 flex-wrap">
                   <Link href={`/affiliates/${a.id}/edit`} className="text-xs text-primary hover:underline">Edit</Link>
+                  <CopyLinkButton url={`${baseUrl}/signup/${a.code}`} />
                 </div>
               </div>
             )

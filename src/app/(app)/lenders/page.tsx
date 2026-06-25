@@ -13,6 +13,7 @@ export default async function LendersPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const { tab } = await searchParams
   const activeTab = tab === "processors" ? "processors" : "lenders"
@@ -21,11 +22,12 @@ export default async function LendersPage({
 
   const [lenders, processors] = await Promise.all([
     db.lender.findMany({
+      where: { orgId },
       include: { _count: { select: { loanFiles: true } } },
       orderBy: { name: "asc" },
     }),
     db.user.findMany({
-      where: { role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
+      where: { orgId, role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
       include: { _count: { select: { loanFiles: true } } },
       orderBy: { name: "asc" },
     }),

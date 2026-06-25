@@ -10,9 +10,10 @@ export default async function UsersPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "users:manage")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const users = await db.user.findMany({
-    where: { role: { not: "CLIENT" } },
+    where: { orgId, role: { not: "CLIENT" } },
     orderBy: [{ active: "desc" }, { role: "asc" }, { name: "asc" }],
   })
 

@@ -286,7 +286,7 @@ export async function createLender(opts: {
   const session = await requireLoanWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const lender = await db.lender.create({ data: opts })
+  const lender = await db.lender.create({ data: { ...opts, orgId: session.user.orgId } })
 
   await writeAuditLog({
     actorId: session.user.id,

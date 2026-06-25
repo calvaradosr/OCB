@@ -33,9 +33,10 @@ export default async function LoanFilePage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const loanFile = await db.loanFile.findUnique({
-    where: { id },
+    where: { id, orgId },
     include: {
       client: { select: { id: true, firstName: true, lastName: true, status: true } },
       lender: true,
@@ -70,12 +71,12 @@ export default async function LoanFilePage({
 
   // Lenders for edit form
   const lenders = await db.lender.findMany({
-    where: { active: true },
+    where: { orgId, active: true },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })
   const processors = await db.user.findMany({
-    where: { role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
+    where: { orgId, role: { in: ["LOAN_PROCESSOR", "MANAGER", "ADMIN"] }, active: true },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })

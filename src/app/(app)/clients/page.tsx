@@ -3,7 +3,9 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
 import { StatusBadge } from "@/components/StatusBadge"
-import { CLIENT_STATUSES, STATUS_LABELS } from "@/lib/client-utils"
+import { CLIENT_STATUSES, STATUS_LABELS, type ClientStatus } from "@/lib/client-utils"
+import KanbanBoard from "./KanbanBoard"
+import { InlineStatusSelect } from "@/components/InlineStatusSelect"
 
 const PAGE_SIZE = 25
 
@@ -20,14 +22,16 @@ function ScorePill({ score }: { score: number | null | undefined }) {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string }>
+  searchParams: Promise<{ q?: string; status?: string; agent?: string; page?: string; view?: string }>
 }) {
   const session = (await auth())!
-  const { q, status, agent, page: pageStr } = await searchParams
+  const { orgId } = session.user
+  const { q, status, agent, page: pageStr, view } = await searchParams
   const page = Math.max(1, parseInt(pageStr ?? "1", 10))
+  const isKanban = view === "kanban"
 
   const where = {
-    orgId: "ocb",
+    orgId,
     ...(q
       ? {
           OR: [
@@ -41,7 +45,7 @@ export default async function ClientsPage({
     ...(agent ? { assignedAgentId: agent } : {}),
   }
 
-  const [clients, total, agents] = await Promise.all([
+  const [clients, total, agents, statusCounts] = await Promise.all([
     db.client.findMany({
       where,
       include: { assignedAgent: { select: { id: true, name: true } } },
@@ -51,11 +55,19 @@ export default async function ClientsPage({
     }),
     db.client.count({ where }),
     db.user.findMany({
-      where: { role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
+      where: { orgId, role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    db.client.groupBy({
+      by: ["status"],
+      where: { orgId },
+      _count: { _all: true },
+    }),
   ])
+
+  const countByStatus = Object.fromEntries(statusCounts.map(s => [s.status, s._count._all]))
+  const totalAll = Object.values(countByStatus).reduce((a, b) => a + b, 0)
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const canWrite = can(session.user.role, "clients:write")
@@ -91,6 +103,91 @@ export default async function ClientsPage({
   const reportMap = new Map(latestReports.map(r => [r.clientId, r]))
   const disputeMap = new Map(latestDisputes.map(d => [d.clientId, d]))
 
+  // Kanban view — fetch all clients (no pagination) for drag-drop pipeline
+  if (isKanban) {
+    const allClients = await db.client.findMany({
+      where: { orgId },
+      include: { assignedAgent: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    })
+    const allIds = allClients.map(c => c.id)
+    const [kanbanReports, kanbanDisputes] = await Promise.all([
+      db.creditReport.findMany({
+        where: { clientId: { in: allIds } },
+        orderBy: { pulledAt: "desc" },
+        distinct: ["clientId"],
+        select: { clientId: true, scoreExperian: true, scoreEquifax: true, scoreTransunion: true },
+      }),
+      db.dispute.findMany({
+        where: { clientId: { in: allIds } },
+        orderBy: { createdAt: "desc" },
+        distinct: ["clientId"],
+        select: { clientId: true, createdAt: true },
+      }),
+    ])
+    const krMap = new Map(kanbanReports.map(r => [r.clientId, r]))
+    const kdMap = new Map(kanbanDisputes.map(d => [d.clientId, d]))
+
+    const kanbanClients = allClients.map(c => {
+      const r = krMap.get(c.id)
+      const bestScore = r
+        ? Math.max(r.scoreExperian ?? 0, r.scoreEquifax ?? 0, r.scoreTransunion ?? 0) || null
+        : null
+      const lastActivity = kdMap.get(c.id)?.createdAt ?? new Date(c.createdAt)
+      // Server component: rendered once per request, so reading the clock here is safe.
+      // eslint-disable-next-line react-hooks/purity
+      const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24))
+      return {
+        id: c.id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        email: c.email,
+        phone: c.phone,
+        status: c.status as ClientStatus,
+        createdAt: c.createdAt,
+        assignedAgent: c.assignedAgent,
+        bestScore,
+        daysSinceActivity,
+      }
+    })
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-ink">Clients</h1>
+            <p className="text-sm text-muted">{allClients.length} total</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg border border-secondary-soft overflow-hidden text-sm">
+              <a
+                href="/clients"
+                className="px-3 py-1.5 text-muted hover:text-ink hover:bg-canvas transition-colors"
+              >
+                ☰ List
+              </a>
+              <a
+                href="/clients?view=kanban"
+                className="px-3 py-1.5 bg-primary text-white font-medium"
+              >
+                ⊞ Pipeline
+              </a>
+            </div>
+            {canWrite && (
+              <Link
+                href="/clients/new"
+                className="rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-medium px-4 py-2 transition-colors"
+              >
+                + New client
+              </Link>
+            )}
+          </div>
+        </div>
+        <KanbanBoard clients={kanbanClients} canWrite={canWrite} />
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Header */}
@@ -99,7 +196,21 @@ export default async function ClientsPage({
           <h1 className="text-2xl font-semibold text-ink">Clients</h1>
           <p className="text-sm text-muted">{total} total</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-secondary-soft overflow-hidden text-sm">
+            <a
+              href="/clients"
+              className="px-3 py-1.5 bg-secondary-soft text-ink font-medium"
+            >
+              ☰ List
+            </a>
+            <a
+              href="/clients?view=kanban"
+              className="px-3 py-1.5 text-muted hover:text-ink hover:bg-canvas transition-colors"
+            >
+              ⊞ Pipeline
+            </a>
+          </div>
           <a
             href="/api/clients/export"
             className="rounded-lg border border-secondary-soft px-4 py-2 text-sm text-muted hover:text-ink transition-colors"
@@ -121,17 +232,25 @@ export default async function ClientsPage({
       <div className="flex gap-1 mb-4 border-b border-secondary-soft overflow-x-auto">
         {(["ALL", ...CLIENT_STATUSES] as const).map(s => {
           const params = new URLSearchParams({ ...(q ? { q } : {}), ...(agent ? { agent } : {}), status: s === "ALL" ? "" : s })
+          const count = s === "ALL" ? totalAll : (countByStatus[s] ?? 0)
           return (
             <a
               key={s}
               href={`/clients?${params}`}
-              className={`px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
                 (status ?? "ALL") === s
                   ? "border-primary text-primary font-medium"
                   : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {s === "ALL" ? "All" : STATUS_LABELS[s]}
+              {count > 0 && (
+                <span className={`text-xs rounded-full px-1.5 py-0.5 font-medium ${
+                  (status ?? "ALL") === s ? "bg-primary/15 text-primary" : "bg-secondary-soft text-muted"
+                }`}>
+                  {count}
+                </span>
+              )}
             </a>
           )
         })}
@@ -185,9 +304,9 @@ export default async function ClientsPage({
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Client</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Status</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Agent</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">TU</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EXP</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">EQF</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">TU</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Round</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted uppercase tracking-wider">Last Activity</th>
               </tr>
@@ -213,13 +332,18 @@ export default async function ClientsPage({
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/clients/${c.id}`} className="block">
-                        <StatusBadge status={c.status} />
-                      </Link>
+                      {canWrite
+                        ? <InlineStatusSelect clientId={c.id} currentStatus={c.status} />
+                        : <Link href={`/clients/${c.id}`} className="block"><StatusBadge status={c.status} /></Link>}
                     </td>
                     <td className="px-4 py-3 text-muted">
                       <Link href={`/clients/${c.id}`} className="block">
                         {c.assignedAgent?.name ?? "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Link href={`/clients/${c.id}`} className="block">
+                        <ScorePill score={report?.scoreTransunion} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -230,11 +354,6 @@ export default async function ClientsPage({
                     <td className="px-4 py-3 text-center">
                       <Link href={`/clients/${c.id}`} className="block">
                         <ScorePill score={report?.scoreEquifax} />
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Link href={`/clients/${c.id}`} className="block">
-                        <ScorePill score={report?.scoreTransunion} />
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-center">

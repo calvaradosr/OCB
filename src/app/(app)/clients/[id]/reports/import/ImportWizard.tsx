@@ -9,6 +9,16 @@ type LocalItem = ImportedItem & { localId: string }
 
 type Step = "method" | "items" | "scores" | "confirm"
 
+const ACCOUNT_STATUSES = [
+  { value: "", label: "— Status —" },
+  { value: "OPEN", label: "Open" },
+  { value: "CLOSED", label: "Closed" },
+  { value: "PAID", label: "Paid" },
+  { value: "CHARGED_OFF", label: "Charged Off" },
+  { value: "IN_COLLECTIONS", label: "In Collections" },
+  { value: "TRANSFERRED", label: "Transferred" },
+]
+
 const EMPTY_ITEM = (): LocalItem => ({
   localId: Math.random().toString(36).slice(2),
   creditorName: "",
@@ -19,6 +29,10 @@ const EMPTY_ITEM = (): LocalItem => ({
   onTransunion: true,
   balance: "",
   dateOpened: "",
+  accountStatus: "",
+  chargeOffDate: "",
+  lastPaymentDate: "",
+  highBalance: "",
   flagged: true,
 })
 
@@ -31,6 +45,39 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
   const [scoreTransunion, setScoreTransunion] = useState("")
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleCrcUpload(file: File) {
+    setError("")
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append("clientId", clientId)
+      form.append("file", file)
+      const res = await fetch("/api/reports/parse-crc", { method: "POST", body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? "Failed to parse report.")
+        return
+      }
+      const parsedItems: ImportedItem[] = data.items ?? []
+      if (!parsedItems.length) {
+        setError("No accounts found — this may not be a CreditRepairCloud report.")
+        return
+      }
+      setItems(parsedItems.map(it => ({ ...it, localId: Math.random().toString(36).slice(2) })))
+      const s = data.scores ?? {}
+      setScoreExperian(s.experian != null ? String(s.experian) : "")
+      setScoreEquifax(s.equifax != null ? String(s.equifax) : "")
+      setScoreTransunion(s.transunion != null ? String(s.transunion) : "")
+      setStep("items")
+    } catch {
+      setError("Upload failed. Please try again.")
+    } finally {
+      setUploading(false)
+    }
+  }
 
   function updateItem(localId: string, patch: Partial<LocalItem>) {
     setItems(prev =>
@@ -87,26 +134,42 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
       {step === "method" && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-ink">Choose import method</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".html,.htm,text/html"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              // Reset so re-selecting the same file fires onChange again.
+              e.target.value = ""
+              if (file) handleCrcUpload(file)
+            }}
+          />
+          <div className="grid grid-cols-2 gap-4">
             {[
+              { key: "crc", title: "CreditRepairCloud Report", desc: "Upload the HTML report exported from CreditRepairCloud. Items and scores are parsed for review." },
               { key: "manual", title: "Manual Entry", desc: "Enter items by hand. Best for transcribing a physical report." },
-              { key: "csv", title: "CSV Upload", desc: "Upload a structured CSV file. Format available below." },
-              { key: "api", title: "Partner API", desc: "SmartCredit / IdentityIQ integration. Coming in a future update." },
             ].map(opt => (
               <button
                 key={opt.key}
-                disabled={opt.key === "api"}
-                onClick={() => { if (opt.key !== "api") setStep("items") }}
+                disabled={uploading}
+                onClick={() => {
+                  if (opt.key === "crc") fileInputRef.current?.click()
+                  else setStep("items")
+                }}
                 className={`border-2 rounded-lg p-4 text-left transition-colors
-                  ${opt.key === "api" ? "opacity-40 cursor-not-allowed border-secondary-soft" :
-                    "border-secondary-soft hover:border-primary cursor-pointer"}`}
+                  border-secondary-soft hover:border-primary cursor-pointer disabled:opacity-50 disabled:cursor-wait`}
               >
                 <p className="font-medium text-ink">{opt.title}</p>
                 <p className="text-xs text-muted mt-1">{opt.desc}</p>
-                {opt.key === "api" && <span className="text-xs text-warning mt-2 block">Coming soon</span>}
+                {opt.key === "crc" && uploading && (
+                  <span className="text-xs text-primary mt-2 block">Parsing report…</span>
+                )}
               </button>
             ))}
           </div>
+          {error && <p className="text-sm text-danger">{error}</p>}
         </div>
       )}
 
@@ -120,14 +183,17 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-secondary-soft text-xs text-muted uppercase tracking-wide">
-                  <th className="py-2 px-2 text-left w-48">Creditor</th>
-                  <th className="py-2 px-2 text-left w-28">Account #</th>
+                  <th className="py-2 px-2 text-left w-44">Creditor</th>
+                  <th className="py-2 px-2 text-left w-24">Account #</th>
                   <th className="py-2 px-2 text-left w-32">Type</th>
+                  <th className="py-2 px-2 text-center">TU</th>
                   <th className="py-2 px-2 text-center">EXP</th>
                   <th className="py-2 px-2 text-center">EQ</th>
-                  <th className="py-2 px-2 text-center">TU</th>
+                  <th className="py-2 px-2 text-left w-28">Status</th>
                   <th className="py-2 px-2 text-left w-24">Balance</th>
                   <th className="py-2 px-2 text-left w-28">Opened</th>
+                  <th className="py-2 px-2 text-left w-28">Charge-Off</th>
+                  <th className="py-2 px-2 text-left w-28">Last Pmt</th>
                   <th className="py-2 px-2 text-center">Flag</th>
                   <th className="py-2 px-2 w-8" />
                 </tr>
@@ -162,7 +228,7 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
                         ))}
                       </select>
                     </td>
-                    {(["onExperian", "onEquifax", "onTransunion"] as const).map(bureau => (
+                    {(["onTransunion", "onExperian", "onEquifax"] as const).map(bureau => (
                       <td key={bureau} className="py-1 px-2 text-center">
                         <input
                           type="checkbox"
@@ -172,6 +238,17 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
                         />
                       </td>
                     ))}
+                    <td className="py-1 px-2">
+                      <select
+                        value={it.accountStatus}
+                        onChange={e => updateItem(it.localId, { accountStatus: e.target.value })}
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {ACCOUNT_STATUSES.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="py-1 px-2">
                       <input
                         value={it.balance}
@@ -186,6 +263,22 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
                       <input
                         value={it.dateOpened}
                         onChange={e => updateItem(it.localId, { dateOpened: e.target.value })}
+                        type="date"
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </td>
+                    <td className="py-1 px-2">
+                      <input
+                        value={it.chargeOffDate}
+                        onChange={e => updateItem(it.localId, { chargeOffDate: e.target.value })}
+                        type="date"
+                        className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </td>
+                    <td className="py-1 px-2">
+                      <input
+                        value={it.lastPaymentDate}
+                        onChange={e => updateItem(it.localId, { lastPaymentDate: e.target.value })}
                         type="date"
                         className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
@@ -244,9 +337,9 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
           <p className="text-sm text-muted">Enter the credit scores from this report. Leave blank if not available.</p>
           <div className="grid grid-cols-3 gap-4">
             {[
+              { label: "TransUnion", state: scoreTransunion, set: setScoreTransunion },
               { label: "Experian", state: scoreExperian, set: setScoreExperian },
               { label: "Equifax", state: scoreEquifax, set: setScoreEquifax },
-              { label: "TransUnion", state: scoreTransunion, set: setScoreTransunion },
             ].map(({ label, state, set }) => (
               <div key={label}>
                 <label className="block text-sm font-medium text-ink mb-1">{label}</label>
@@ -285,9 +378,9 @@ export default function ImportWizard({ clientId }: { clientId: string }) {
             <p><span className="text-muted">Flagged items:</span> <strong className="text-danger">{items.filter(it => it.creditorName.trim() && it.flagged).length}</strong></p>
             {(scoreExperian || scoreEquifax || scoreTransunion) && (
               <p><span className="text-muted">Scores:</span>{" "}
+                {scoreTransunion && <span>TU <strong>{scoreTransunion}</strong></span>}{" "}
                 {scoreExperian && <span>Exp <strong>{scoreExperian}</strong></span>}{" "}
-                {scoreEquifax && <span>Eq <strong>{scoreEquifax}</strong></span>}{" "}
-                {scoreTransunion && <span>TU <strong>{scoreTransunion}</strong></span>}
+                {scoreEquifax && <span>Eq <strong>{scoreEquifax}</strong></span>}
               </p>
             )}
           </div>

@@ -27,6 +27,7 @@ export async function createAutomation(opts: {
 
   const automation = await db.automation.create({
     data: {
+      orgId: session.user.orgId,
       name: opts.name.trim(),
       trigger: opts.trigger,
       conditions: opts.conditions && Object.keys(opts.conditions).length
@@ -56,7 +57,7 @@ export async function updateAutomation(
   if (!session) return { error: "Unauthorized" }
 
   await db.automation.update({
-    where: { id },
+    where: { id, orgId: session.user.orgId },
     data: {
       ...opts,
       conditions: opts.conditions === null
@@ -77,7 +78,7 @@ export async function deleteAutomation(id: string): Promise<{ ok: true } | { err
   const session = await requireAdmin()
   if (!session) return { error: "Unauthorized" }
 
-  await db.automation.delete({ where: { id } })
+  await db.automation.delete({ where: { id, orgId: session.user.orgId } })
   revalidatePath("/automations")
   return { ok: true }
 }

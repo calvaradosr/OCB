@@ -6,13 +6,20 @@ import { can } from "@/lib/rbac"
 import { writeAuditLog } from "@/lib/audit"
 import { TradelineOrderStatus } from "@prisma/client"
 import { canOrderTransition, calcCommission } from "@/lib/tradeline-utils"
-import { encrypt } from "@/lib/crypto"
+import { encrypt, decryptPII } from "@/lib/crypto"
 import { revalidatePath } from "next/cache"
 
 async function requireTradelineWrite() {
   const session = await auth()
   if (!session?.user?.id) return null
   if (!can(session.user.role, "tradelines:write")) return null
+  return session
+}
+
+async function requireTradelineRead() {
+  const session = await auth()
+  if (!session?.user?.id) return null
+  if (!can(session.user.role, "tradelines:read")) return null
   return session
 }
 
@@ -28,7 +35,7 @@ export async function createVendor(opts: {
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const vendor = await db.tradelineVendor.create({ data: opts })
+  const vendor = await db.tradelineVendor.create({ data: { ...opts, orgId: session.user.orgId } })
 
   await writeAuditLog({
     actorId: session.user.id,
@@ -56,7 +63,13 @@ export async function updateVendor(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  await db.tradelineVendor.update({ where: { id: vendorId }, data: opts })
+  // Scope to caller's org so one tenant can't update another tenant's vendor.
+  const res = await db.tradelineVendor.updateMany({
+    where: { id: vendorId, orgId: session.user.orgId },
+    data: opts,
+  })
+  if (res.count === 0) return { error: "Vendor not found" }
+
   revalidatePath("/tradelines/vendors")
   return { ok: true }
 }
@@ -80,6 +93,7 @@ export async function createTradeline(opts: {
   const tradeline = await db.tradeline.create({
     data: {
       ...opts,
+      orgId: session.user.orgId,
       availableAuSpots: opts.totalAuSpots,
     },
   })
@@ -197,7 +211,7 @@ export async function advanceOrderStatus(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const order = await db.tradelineOrder.findUnique({ where: { id: orderId } })
+  const order = await db.tradelineOrder.findFirst({ where: { id: orderId, orgId: session.user.orgId } })
   if (!order) return { error: "Order not found" }
 
   if (!canOrderTransition(order.status, newStatus)) {
@@ -237,7 +251,7 @@ export async function markVendorPaid(
   const session = await requireTradelineWrite()
   if (!session) return { error: "Unauthorized" }
 
-  const order = await db.tradelineOrder.findUnique({ where: { id: orderId } })
+  const order = await db.tradelineOrder.findFirst({ where: { id: orderId, orgId: session.user.orgId } })
   if (!order) return { error: "Order not found" }
 
   await db.tradelineOrder.update({
@@ -247,6 +261,90 @@ export async function markVendorPaid(
 
   revalidatePath(`/tradelines/${order.tradelineId}`)
   return { ok: true }
+}
+
+// ─── AU Info Packet ───────────────────────────────────────────────────────────
+
+export async function revealAuPacket(orderId: string): Promise<
+  | {
+      auFirstName: string | null
+      auLastName: string | null
+      auAddress: string | null
+      auDob: string | null
+      auSsn: string | null
+      tradelineName: string
+      vendorName: string
+    }
+  | { error: string }
+> {
+  const session = await requireTradelineRead()
+  if (!session) return { error: "Unauthorized" }
+
+  // Scope to caller's org — this returns decrypted SSN/DOB, so a missing
+  // tenant check here is a cross-tenant PII disclosure.
+  const order = await db.tradelineOrder.findFirst({
+    where: { id: orderId, orgId: session.user.orgId },
+    include: {
+      tradeline: { include: { vendor: { select: { name: true } } } },
+    },
+  })
+  if (!order) return { error: "Order not found" }
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    action: "VIEW_PII",
+    entity: "TradelineOrder",
+    entityId: orderId,
+    detail: { fields: ["auDob", "auSsn"] },
+  })
+
+  return {
+    auFirstName: order.auFirstName,
+    auLastName: order.auLastName,
+    auAddress: order.auAddress,
+    auDob: order.auDobEncrypted ? decryptPII(order.auDobEncrypted) : null,
+    auSsn: order.auSsnEncrypted ? decryptPII(order.auSsnEncrypted) : null,
+    tradelineName: order.tradeline.bank,
+    vendorName: order.tradeline.vendor.name,
+  }
+}
+
+// ─── Vendor Bulk Payout ───────────────────────────────────────────────────────
+
+export async function markVendorPaidBulk(
+  vendorId: string
+): Promise<{ ok: true; count: number } | { error: string }> {
+  const session = await requireTradelineWrite()
+  if (!session) return { error: "Unauthorized" }
+
+  const orders = await db.tradelineOrder.findMany({
+    where: {
+      orgId: session.user.orgId,
+      tradeline: { vendorId },
+      vendorPaidAt: null,
+      status: { in: ["POSTED", "REMOVED"] },
+    },
+    select: { id: true },
+  })
+
+  if (orders.length === 0) return { ok: true, count: 0 }
+
+  await db.tradelineOrder.updateMany({
+    where: { id: { in: orders.map(o => o.id) } },
+    data: { vendorPaidAt: new Date() },
+  })
+
+  await writeAuditLog({
+    actorId: session.user.id,
+    action: "BULK_MARK_PAID",
+    entity: "TradelineVendor",
+    entityId: vendorId,
+    detail: { count: orders.length },
+  })
+
+  revalidatePath(`/tradelines/vendors/${vendorId}/edit`)
+  revalidatePath("/tradelines/vendors")
+  return { ok: true, count: orders.length }
 }
 
 // Called after report import: tries to verify posting for all active orders on a client.

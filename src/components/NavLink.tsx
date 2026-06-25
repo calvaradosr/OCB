@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, FileText, Mail, Briefcase,
   Building2, CreditCard, Zap, Users2, Settings,
-  ClipboardList, ScrollText,
+  ClipboardList, ScrollText, BarChart2, FileEdit,
 } from "lucide-react"
 
 const ICONS: Record<string, React.ElementType> = {
@@ -12,6 +12,7 @@ const ICONS: Record<string, React.ElementType> = {
   clients:     Users,
   disputes:    FileText,
   letters:     Mail,
+  reports:     BarChart2,
   loans:       Briefcase,
   lenders:     Building2,
   tradelines:  CreditCard,
@@ -19,10 +20,21 @@ const ICONS: Record<string, React.ElementType> = {
   affiliates:  Users2,
   settings:    Settings,
   users:       ClipboardList,
+  templates:   FileEdit,
   "audit-log": ScrollText,
 }
 
-export function NavLink({ href, label, icon }: { href: string; label: string; icon?: string }) {
+export function NavLink({
+  href,
+  label,
+  icon,
+  badge,
+}: {
+  href: string
+  label: string
+  icon?: string
+  badge?: number
+}) {
   const pathname = usePathname()
   const active =
     pathname === href ||
@@ -34,14 +46,19 @@ export function NavLink({ href, label, icon }: { href: string; label: string; ic
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all ${
+      className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-all ${
         active
           ? "bg-primary/10 text-primary font-medium border border-primary/20"
           : "text-muted hover:bg-secondary-soft/60 hover:text-ink border border-transparent"
       }`}
     >
-      {Icon && <Icon size={15} strokeWidth={active ? 2.2 : 1.8} className={active ? "text-primary" : "text-muted"} />}
-      {label}
+      {Icon && <Icon size={14} strokeWidth={active ? 2.2 : 1.8} className={active ? "text-primary" : "text-muted"} />}
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="text-[10px] font-bold bg-danger text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   )
 }

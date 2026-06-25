@@ -14,9 +14,10 @@ export default async function FundingLedgerPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "loans:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const funded = await db.loanFile.findMany({
-    where: { status: "FUNDED" },
+    where: { orgId, status: "FUNDED" },
     include: {
       client: { select: { id: true, firstName: true, lastName: true } },
       lender: { select: { name: true } },

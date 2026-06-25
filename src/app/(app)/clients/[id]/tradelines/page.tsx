@@ -24,15 +24,16 @@ export default async function ClientTradelinesPage({
   const session = await auth()
   if (!session) redirect("/login")
   if (!can(session.user.role, "tradelines:read")) redirect("/dashboard")
+  const { orgId } = session.user
 
   const client = await db.client.findUnique({
-    where: { id: clientId },
+    where: { id: clientId, orgId },
     select: { id: true, firstName: true, lastName: true },
   })
   if (!client) notFound()
 
   const orders = await db.tradelineOrder.findMany({
-    where: { clientId },
+    where: { orgId, clientId },
     include: {
       tradeline: {
         include: { vendor: { select: { name: true } } },
@@ -53,7 +54,7 @@ export default async function ClientTradelinesPage({
   // Available tradelines for assignment
   const availableTradelines = canWrite
     ? await db.tradeline.findMany({
-        where: { active: true, availableAuSpots: { gte: 1 } },
+        where: { orgId, active: true, availableAuSpots: { gte: 1 } },
         include: { vendor: { select: { name: true } } },
         orderBy: [{ creditLimitCents: "desc" }],
       })

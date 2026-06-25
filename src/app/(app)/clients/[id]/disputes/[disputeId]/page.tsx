@@ -45,6 +45,8 @@ export default async function DisputeDetailPage({
   if (!dispute || dispute.clientId !== id) notFound()
 
   const isSent = dispute.items.some(it => it.sentAt !== null)
+  const allResolved = isSent && dispute.items.length > 0 && dispute.items.every(di => di.outcome !== "PENDING")
+  const resolvedDeletedCount = dispute.items.filter(di => di.outcome === "DELETED").length
   const firstSentAt = dispute.items.find(it => it.sentAt)?.sentAt ?? null
   const firstDueAt = dispute.items.reduce<Date | null>((earliest, it) => {
     if (!it.dueAt) return earliest
@@ -106,12 +108,37 @@ export default async function DisputeDetailPage({
             )}
           </div>
         )}
-        {isSent && (
+        {isSent && !allResolved && (
           <div className="mt-4 pt-4 border-t border-secondary-soft">
             <p className="text-sm font-medium text-ink">Next step: Record outcomes as responses arrive</p>
             <p className="text-xs text-muted mt-0.5">
               Use the outcome dropdowns below to record bureau responses. FCRA requires response within 30 days of receipt.
             </p>
+          </div>
+        )}
+        {allResolved && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">All outcomes recorded</span>
+                </div>
+                <p className="text-sm font-medium text-ink">
+                  {resolvedDeletedCount > 0
+                    ? `${resolvedDeletedCount} item${resolvedDeletedCount !== 1 ? "s" : ""} deleted — ready to start Round ${dispute.round + 1}`
+                    : `Round ${dispute.round} complete — ready to escalate with Round ${dispute.round + 1}`}
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  Items that were verified or received no response can be disputed again with stronger language or escalated to CFPB.
+                </p>
+              </div>
+              <Link
+                href={`/clients/${id}/disputes/new`}
+                className="shrink-0 px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                Start Round {dispute.round + 1} →
+              </Link>
+            </div>
           </div>
         )}
       </div>
@@ -186,12 +213,22 @@ export default async function DisputeDetailPage({
                   ) : "—"}
                 </td>
                 <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${DISPUTE_OUTCOME_COLORS[di.outcome] ?? ""}`}>
-                      {DISPUTE_OUTCOME_LABELS[di.outcome] ?? di.outcome}
-                    </span>
-                    {isSent && (
-                      <OutcomeForm disputeItemId={di.id} currentOutcome={di.outcome} />
+                  <div className="flex items-start gap-2 flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${DISPUTE_OUTCOME_COLORS[di.outcome] ?? ""}`}>
+                        {DISPUTE_OUTCOME_LABELS[di.outcome] ?? di.outcome}
+                      </span>
+                      {di.resolvedAt && di.outcome !== "PENDING" && (
+                        <span className="text-xs text-muted">
+                          {di.resolvedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      )}
+                      {isSent && (
+                        <OutcomeForm disputeItemId={di.id} currentOutcome={di.outcome} />
+                      )}
+                    </div>
+                    {di.responseNote && (
+                      <p className="text-xs text-muted italic">{di.responseNote}</p>
                     )}
                   </div>
                 </td>
