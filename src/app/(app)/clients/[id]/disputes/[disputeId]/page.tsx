@@ -65,7 +65,7 @@ export default async function DisputeDetailPage({
         <span>›</span>
         <Link href={`/clients/${id}`} className="hover:text-ink">{client.firstName} {client.lastName}</Link>
         <span>›</span>
-        <Link href={`/clients/${id}/disputes`} className="hover:text-ink">Disputes</Link>
+        <Link href={`/clients/${id}/disputes`} className="hover:text-ink">Blocks</Link>
         <span>›</span>
         <span className="text-ink font-medium">Round {dispute.round}</span>
       </nav>
@@ -94,7 +94,7 @@ export default async function DisputeDetailPage({
         {!isSent && (
           <div className="mt-4 pt-4 border-t border-secondary-soft">
             {dispute.letters.length === 0 ? (
-              <p className="text-sm text-warning">No letters generated yet. Go back and run the dispute wizard.</p>
+              <p className="text-sm text-warning">No letters generated yet. Go back and run the blocking wizard.</p>
             ) : (
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -125,11 +125,11 @@ export default async function DisputeDetailPage({
                 </div>
                 <p className="text-sm font-medium text-ink">
                   {resolvedDeletedCount > 0
-                    ? `${resolvedDeletedCount} item${resolvedDeletedCount !== 1 ? "s" : ""} deleted — ready to start Round ${dispute.round + 1}`
+                    ? `${resolvedDeletedCount} item${resolvedDeletedCount !== 1 ? "s" : ""} blocked — ready to start Round ${dispute.round + 1}`
                     : `Round ${dispute.round} complete — ready to escalate with Round ${dispute.round + 1}`}
                 </p>
                 <p className="text-xs text-muted mt-0.5">
-                  Items that were verified or received no response can be disputed again with stronger language or escalated to CFPB.
+                  Items that were verified or received no response can be blocked again with stronger language or escalated to CFPB.
                 </p>
               </div>
               <Link
@@ -176,7 +176,7 @@ export default async function DisputeDetailPage({
       {/* Dispute items */}
       <div className="bg-white border border-secondary-soft rounded-xl overflow-hidden">
         <div className="bg-secondary-soft/30 px-5 py-3 border-b border-secondary-soft">
-          <h2 className="font-semibold text-ink">Disputed Items</h2>
+          <h2 className="font-semibold text-ink">Items in This Block</h2>
         </div>
         <table className="min-w-full text-sm">
           <thead className="border-b border-secondary-soft">

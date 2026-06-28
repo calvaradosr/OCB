@@ -241,7 +241,7 @@ export default async function ClientProfilePage({
                 href={`/clients/${id}/disputes/new`}
                 className="shrink-0 rounded-lg bg-primary text-white px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
               >
-                New Dispute
+                New Block
               </Link>
             )}
           </div>
@@ -311,7 +311,7 @@ export default async function ClientProfilePage({
               <div className="absolute top-4 left-4 right-4 h-0.5 bg-secondary-soft -z-0" />
               <WorkflowStep step={1} label="Import Report" done={hasReport} active={workflowStage === 1} />
               <WorkflowStep step={2} label="Review Items" done={hasReport && hasDispute} active={workflowStage === 2} />
-              <WorkflowStep step={3} label="Create Dispute" done={hasDispute} active={workflowStage === 3} />
+              <WorkflowStep step={3} label="Create Block" done={hasDispute} active={workflowStage === 3} />
               <WorkflowStep step={4} label="Send Letters" done={isSent} active={workflowStage === 4} />
               <WorkflowStep step={5} label="Track Results" done={hasResults} active={workflowStage === 5} />
             </div>
@@ -320,9 +320,9 @@ export default async function ClientProfilePage({
             <div className="mt-4 pt-4 border-t border-secondary-soft flex items-center justify-between gap-3">
               <p className="text-sm text-muted">
                 {workflowStage === 1 && "No credit report yet. Import to get started."}
-                {workflowStage === 2 && `${totalItems} item${totalItems !== 1 ? "s" : ""} imported — review and flag items to dispute.`}
-                {workflowStage === 3 && `${flaggedCount} item${flaggedCount !== 1 ? "s" : ""} flagged — create a dispute round.`}
-                {workflowStage === 4 && "Dispute created — print and mail letters, then mark as sent."}
+                {workflowStage === 2 && `${totalItems} item${totalItems !== 1 ? "s" : ""} imported — review and flag items to block.`}
+                {workflowStage === 3 && `${flaggedCount} item${flaggedCount !== 1 ? "s" : ""} flagged — create a blocking round.`}
+                {workflowStage === 4 && "Block created — print and mail letters, then mark as sent."}
                 {workflowStage === 5 && `FCRA clock running — record outcomes as bureau responses arrive.`}
               </p>
               <Link
@@ -337,8 +337,8 @@ export default async function ClientProfilePage({
               >
                 {workflowStage <= 1 ? "Import Report →" :
                  workflowStage === 2 ? "Review Items →" :
-                 workflowStage === 3 ? "Start Dispute →" :
-                 workflowStage === 4 ? "View Dispute →" :
+                 workflowStage === 3 ? "Start Block →" :
+                 workflowStage === 4 ? "View Block →" :
                  "View Results →"}
               </Link>
             </div>
@@ -349,8 +349,8 @@ export default async function ClientProfilePage({
             {[
               { label: "Total Items", value: totalItems, color: "text-ink" },
               { label: "Flagged", value: flaggedCount, color: "text-warning" },
-              { label: "In Dispute", value: inDisputeCount, color: "text-primary" },
-              { label: `Deleted (${deletionRate}%)`, value: deletedCount, color: "text-success" },
+              { label: "Blocking", value: inDisputeCount, color: "text-primary" },
+              { label: `Blocked (${deletionRate}%)`, value: deletedCount, color: "text-success" },
             ].map(stat => (
               <div key={stat.label} className="bg-white rounded-xl border border-secondary-soft p-4 text-center">
                 <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -363,7 +363,7 @@ export default async function ClientProfilePage({
           {latestDispute && (
             <div className="bg-white rounded-xl border border-secondary-soft p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-ink">Latest Dispute Round</h2>
+                <h2 className="font-semibold text-ink">Latest Blocking Round</h2>
                 <Link href={`/clients/${id}/disputes`} className="text-xs text-primary hover:underline">
                   All rounds →
                 </Link>
@@ -385,7 +385,7 @@ export default async function ClientProfilePage({
                   </div>
                   <div>
                     <p className="font-semibold text-success">{latestDispute.items.filter(i => i.outcome === "DELETED").length}</p>
-                    <p className="text-xs text-muted">Deleted</p>
+                    <p className="text-xs text-muted">Blocked</p>
                   </div>
                   <div>
                     <p className="font-semibold text-ink">{latestDispute.letters.length}</p>
@@ -469,9 +469,9 @@ export default async function ClientProfilePage({
               className="flex items-center justify-between bg-white border border-secondary-soft rounded-xl p-4 hover:border-primary transition-colors group"
             >
               <div>
-                <p className="font-semibold text-ink group-hover:text-primary">Disputes</p>
+                <p className="font-semibold text-ink group-hover:text-primary">Blocks</p>
                 <p className="text-xs text-muted mt-0.5">
-                  {allDisputes.length > 0 ? `${allDisputes.length} round${allDisputes.length !== 1 ? "s" : ""} · ${deletedCount} deleted` : "No disputes yet"}
+                  {allDisputes.length > 0 ? `${allDisputes.length} round${allDisputes.length !== 1 ? "s" : ""} · ${deletedCount} blocked` : "No blocks yet"}
                 </p>
               </div>
               <span className="text-muted group-hover:text-primary text-lg">→</span>

@@ -22,7 +22,7 @@ export default async function SettingsPage() {
     {
       href: "/settings/templates",
       title: "Letter Templates",
-      desc: "Customize the 12 dispute letter templates used in the dispute wizard. Changes apply per organization.",
+      desc: "Customize the 12 block letter templates used in the blocking wizard. Changes apply per organization.",
     },
     {
       href: "/automations",

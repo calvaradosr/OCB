@@ -187,7 +187,7 @@ export default async function ReportsPage() {
 
       {/* ── Dispute Outcomes ────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Dispute Performance</h2>
+        <h2 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Blocking Performance</h2>
         <div className="grid grid-cols-4 gap-4">
           <KPI label="Deletion rate" value={`${deletionRate}%`} accent="text-success" sub={`${deletedItems} deleted / ${totalResolved} resolved`} />
           <KPI label="Removal rate" value={`${removalRate}%`} accent="text-primary" sub="Deleted + Repaired" />
@@ -262,7 +262,7 @@ export default async function ReportsPage() {
 
       {/* Quick links */}
       <div className="flex gap-3 text-sm">
-        <Link href="/disputes" className="px-4 py-2 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors">View Disputes →</Link>
+        <Link href="/disputes" className="px-4 py-2 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors">View Blocks →</Link>
         <Link href="/letters" className="px-4 py-2 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors">Print Queue →</Link>
         {canBilling && <Link href="/clients" className="px-4 py-2 rounded-lg border border-secondary-soft text-muted hover:text-ink transition-colors">Client List →</Link>}
       </div>

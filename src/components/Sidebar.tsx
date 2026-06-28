@@ -5,7 +5,7 @@ import { NavLink } from "./NavLink"
 const NAV = [
   { href: "/dashboard",   label: "Dashboard",   icon: "dashboard" },
   { href: "/clients",     label: "Clients",      icon: "clients" },
-  { href: "/disputes",    label: "Disputes",     icon: "disputes" },
+  { href: "/disputes",    label: "Blocks",       icon: "disputes" },
   { href: "/letters",     label: "Letters",      icon: "letters" },
   { href: "/reports",     label: "Reports",      icon: "reports" },
   { href: "/loans",       label: "Loans",        icon: "loans" },

@@ -7,8 +7,8 @@ import { createAutomation, updateAutomation } from "@/app/actions/automations"
 
 const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
   REPORT_IMPORTED: "Report imported",
-  DISPUTE_OUTCOME_DELETED: "Dispute item deleted",
-  DISPUTE_OUTCOME_ANY: "Any dispute outcome recorded",
+  DISPUTE_OUTCOME_DELETED: "Item blocked",
+  DISPUTE_OUTCOME_ANY: "Any block outcome recorded",
   FCRA_CLOCK_30_DAYS: "FCRA 30-day clock expires",
   FCRA_CLOCK_45_DAYS: "FCRA 45-day clock expires",
   CLIENT_CREATED: "New client created",

@@ -40,7 +40,7 @@ const INITIAL: FormState = {
 }
 
 const MODULES = [
-  { value: "CREDIT_REPAIR", label: "Credit Repair", desc: "3-bureau dispute workflow, letters, FCRA tracking" },
+  { value: "CREDIT_REPAIR", label: "Credit Repair", desc: "3-bureau blocking workflow, letters, FCRA tracking" },
   { value: "LOAN", label: "Loan Processing", desc: "Lender submissions, conditions, funding pipeline" },
   { value: "TRADELINE", label: "Tradelines", desc: "Authorized user spot assignments" },
 ]
@@ -213,7 +213,7 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
               <Field label="State" value={form.state} onChange={v => set("state", v)} placeholder="CA" autoComplete="address-level1" />
               <Field label="ZIP" value={form.zip} onChange={v => set("zip", v)} placeholder="90210" autoComplete="postal-code" />
             </div>
-            <p className="text-xs text-muted">Address is used on dispute letters — enter the client&apos;s current mailing address.</p>
+            <p className="text-xs text-muted">Address is used on block letters — enter the client&apos;s current mailing address.</p>
           </div>
         )}
 

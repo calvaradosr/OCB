@@ -79,8 +79,8 @@ export default async function DisputesDashboard({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Disputes</h1>
-          <p className="text-sm text-muted mt-1">Dispute pipeline &amp; FCRA tracking</p>
+          <h1 className="text-2xl font-semibold text-ink">Blocks</h1>
+          <p className="text-sm text-muted mt-1">Blocking pipeline &amp; FCRA tracking</p>
         </div>
         <Link href="/letters" className="text-xs text-primary hover:underline px-3 py-1.5 border border-secondary-soft rounded-lg">
           Print queue →
@@ -89,8 +89,8 @@ export default async function DisputesDashboard({
 
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Stat label="Open disputes" value={String(openDisputes)} sub={`${roundsThisMonth} rounds this month`} />
-        <Stat label="Deletion rate" value={`${deletionRate}%`} sub={`${deletedItems} / ${totalItems} items`} accent="text-success" />
+        <Stat label="Open blocks" value={String(openDisputes)} sub={`${roundsThisMonth} rounds this month`} />
+        <Stat label="Block rate" value={`${deletionRate}%`} sub={`${deletedItems} / ${totalItems} items`} accent="text-success" />
         <Stat label="Letters pending" value={String(pendingLetters)} sub="Awaiting delivery" accent={pendingLetters > 0 ? "text-warning" : undefined} />
         <Stat label="FCRA overdue" value={String(overdueCount)} accent={overdueCount > 0 ? "text-danger" : "text-ink"} />
       </div>
@@ -114,8 +114,8 @@ export default async function DisputesDashboard({
 
       {disputes.length === 0 ? (
         <div className="bg-white border border-dashed border-secondary-soft rounded-xl p-12 text-center">
-          <p className="text-muted">{filter === "overdue" ? "No overdue disputes." : filter === "open" ? "No open disputes." : "No disputes yet."}</p>
-          <p className="text-xs text-muted mt-1">Open a client profile to start the dispute wizard.</p>
+          <p className="text-muted">{filter === "overdue" ? "No overdue blocks." : filter === "open" ? "No open blocks." : "No blocks yet."}</p>
+          <p className="text-xs text-muted mt-1">Open a client profile to start the blocking wizard.</p>
         </div>
       ) : (
         <div className="bg-white border border-secondary-soft rounded-xl overflow-hidden">
@@ -126,7 +126,7 @@ export default async function DisputesDashboard({
                 <th className="py-3 px-4 text-left">Round</th>
                 <th className="py-3 px-4 text-left">Strategy</th>
                 <th className="py-3 px-4 text-center">Items</th>
-                <th className="py-3 px-4 text-center">Deleted</th>
+                <th className="py-3 px-4 text-center">Blocked</th>
                 <th className="py-3 px-4 text-left">FCRA Clock</th>
                 <th className="py-3 px-4 text-left">Created</th>
                 <th className="py-3 px-4" />

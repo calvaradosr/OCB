@@ -183,11 +183,11 @@ export default async function DashboardPage() {
             <SubsystemCard
               href="/disputes"
               title="Credit Repair"
-              description="Disputes, letters &amp; FCRA tracking"
+              description="Blocks, letters &amp; FCRA tracking"
               stats={[
-                { label: "open disputes", value: String(openDisputes ?? "—") },
+                { label: "open blocks", value: String(openDisputes ?? "—") },
                 { label: "letters pending", value: String(pendingLetters ?? "—") },
-                { label: "deletion rate", value: deletionRate != null ? `${deletionRate}%` : "—" },
+                { label: "block rate", value: deletionRate != null ? `${deletionRate}%` : "—" },
               ]}
             />
           )}

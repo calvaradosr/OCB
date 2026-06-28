@@ -150,8 +150,8 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
           <div className="mt-4 pt-4 border-t border-secondary-soft flex items-center gap-6 text-sm">
             <span className="text-muted">{totalItems} total items</span>
             {flaggedItems > 0 && <span className="text-warning font-medium">{flaggedItems} flagged</span>}
-            {inDisputeCount > 0 && <span className="text-primary font-medium">{inDisputeCount} in dispute</span>}
-            {deletedCount > 0 && <span className="text-success font-medium">{deletedCount} deleted</span>}
+            {inDisputeCount > 0 && <span className="text-primary font-medium">{inDisputeCount} blocking</span>}
+            {deletedCount > 0 && <span className="text-success font-medium">{deletedCount} blocked</span>}
             <div className="flex-1" />
             <Link
               href={`/clients/${id}/reports/${latestReport.id}`}
@@ -173,7 +173,7 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
             </svg>
           </div>
           <p className="font-semibold text-ink mb-1">No credit reports yet</p>
-          <p className="text-sm text-muted mb-4">Import the client&apos;s credit report to start the dispute workflow.</p>
+          <p className="text-sm text-muted mb-4">Import the client&apos;s credit report to start the blocking workflow.</p>
           <Link
             href={`/clients/${id}/reports/import`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
@@ -244,12 +244,12 @@ export default async function ReportsPage({ params }: { params: Promise<{ id: st
       {/* Quick action: start dispute if reports exist */}
       {reports.length > 0 && (
         <div className="flex items-center justify-between bg-white rounded-xl border border-secondary-soft p-4">
-          <p className="text-sm text-muted">Ready to dispute? Select flagged items and generate letters.</p>
+          <p className="text-sm text-muted">Ready to block? Select flagged items and generate letters.</p>
           <Link
             href={`/clients/${id}/disputes/new`}
             className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
           >
-            Start Dispute Wizard →
+            Start Blocking Wizard →
           </Link>
         </div>
       )}

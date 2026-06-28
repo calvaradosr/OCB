@@ -17,7 +17,7 @@ export function FlagToggle({ itemId, flagged }: { itemId: string; flagged: boole
         })
       }
       disabled={isPending}
-      title={flagged ? "Remove flag" : "Flag for dispute"}
+      title={flagged ? "Remove flag" : "Flag for blocking"}
       className={`text-sm transition-opacity disabled:opacity-50 ${flagged ? "opacity-100" : "opacity-30 hover:opacity-70"}`}
     >
       🚩

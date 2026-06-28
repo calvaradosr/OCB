@@ -8,7 +8,7 @@ import { Eye, EyeOff } from "lucide-react"
 const STAFF_ROLES: { value: Role; label: string; desc: string }[] = [
   { value: "ADMIN",          label: "Admin",          desc: "Full access including settings" },
   { value: "MANAGER",        label: "Manager",        desc: "All client & billing access" },
-  { value: "AGENT",          label: "Agent",          desc: "CRM, disputes & letters" },
+  { value: "AGENT",          label: "Agent",          desc: "CRM, blocks & letters" },
   { value: "LOAN_PROCESSOR", label: "Loan Processor", desc: "Loan pipeline only" },
 ]
 

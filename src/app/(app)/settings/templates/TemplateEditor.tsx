@@ -13,10 +13,10 @@ const MERGE_FIELDS = [
   { field: "{{client.zip}}", desc: "Client ZIP" },
   { field: "{{bureau.name}}", desc: "Bureau name (EXP/EQF/TU)" },
   { field: "{{bureau.address}}", desc: "Bureau mailing address" },
-  { field: "{{#each items}}...{{/each}}", desc: "Loop over disputed accounts" },
+  { field: "{{#each items}}...{{/each}}", desc: "Loop over blocked accounts" },
   { field: "{{creditorName}}", desc: "Account creditor (inside each)" },
   { field: "{{accountNumberMasked}}", desc: "Masked account # (inside each)" },
-  { field: "{{reason}}", desc: "Dispute reason (inside each)" },
+  { field: "{{reason}}", desc: "Block reason (inside each)" },
 ]
 
 export function TemplateEditor({

@@ -7,7 +7,7 @@ import { recordOutcome } from "@/app/actions/disputes"
 type Outcome = "DELETED" | "REPAIRED" | "VERIFIED" | "NO_RESPONSE"
 
 const OUTCOMES: { value: Outcome; label: string; color: string }[] = [
-  { value: "DELETED",     label: "Deleted",     color: "text-success" },
+  { value: "DELETED",     label: "Blocked",     color: "text-success" },
   { value: "REPAIRED",    label: "Repaired",    color: "text-primary" },
   { value: "VERIFIED",    label: "Verified",    color: "text-danger" },
   { value: "NO_RESPONSE", label: "No Response", color: "text-muted" },
@@ -104,7 +104,7 @@ export function OutcomeForm({
           type="text"
           value={responseNote}
           onChange={e => setResponseNote(e.target.value)}
-          placeholder='e.g. "Creditor verified account" or "Item deleted per dispute"'
+          placeholder='e.g. "Creditor verified account" or "Item blocked per request"'
           className="w-full text-sm border border-secondary-soft rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </div>

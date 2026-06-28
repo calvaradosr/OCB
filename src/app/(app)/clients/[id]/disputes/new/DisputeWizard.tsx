@@ -126,7 +126,7 @@ export default function DisputeWizard({
   }
 
   function goToStep3() {
-    if (!defaultReason.trim()) { setError("Enter a dispute reason."); return }
+    if (!defaultReason.trim()) { setError("Enter a block reason."); return }
     setError("")
     startTransition(async () => {
       const result = await previewDisputeLetters(buildData())
@@ -170,8 +170,8 @@ export default function DisputeWizard({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Select items to dispute</h2>
-              <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to dispute at for each item.</p>
+              <h2 className="text-lg font-semibold text-ink">Select items to block</h2>
+              <p className="text-sm text-muted">Flagged items are pre-selected. Choose which bureaus to block at for each item.</p>
             </div>
             {items.length > 0 && (
               <div className="flex gap-2 text-xs">
@@ -264,7 +264,7 @@ export default function DisputeWizard({
       {/* Step 2 — Strategy + reasons */}
       {step === 2 && (
         <div className="space-y-5">
-          <h2 className="text-lg font-semibold text-ink">Dispute strategy &amp; reasons</h2>
+          <h2 className="text-lg font-semibold text-ink">Blocking strategy &amp; reasons</h2>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -300,7 +300,7 @@ export default function DisputeWizard({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-ink">Default dispute reason</label>
+            <label className="block text-sm font-medium text-ink">Default block reason</label>
             <p className="text-xs text-muted">Pick from the library or write a custom reason. This applies to all selected items (you can override per item below).</p>
 
             {/* Reason library picker */}
@@ -460,7 +460,7 @@ export default function DisputeWizard({
       {/* Step 4 — Confirm */}
       {step === 4 && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-ink">Confirm dispute</h2>
+          <h2 className="text-lg font-semibold text-ink">Confirm block</h2>
           <div className="bg-secondary-soft/20 rounded-lg p-4 text-sm space-y-2">
             <p><span className="text-muted">Strategy:</span> <strong>{DISPUTE_STRATEGIES.find(s => s.value === strategy)?.label ?? strategy}</strong></p>
             <p><span className="text-muted">Items:</span> <strong>{selectedItems.length}</strong></p>
@@ -471,7 +471,7 @@ export default function DisputeWizard({
           </div>
 
           <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-xs text-warning">
-            Letters will be saved as drafts. You must click &quot;Mark as Sent&quot; on the dispute detail page once letters are actually mailed to start the FCRA 30-day clock.
+            Letters will be saved as drafts. You must click &quot;Mark as Sent&quot; on the block detail page once letters are actually mailed to start the FCRA 30-day clock.
           </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}
@@ -484,7 +484,7 @@ export default function DisputeWizard({
               disabled={isPending}
               className="px-6 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
             >
-              {isPending ? "Creating dispute…" : "Create Dispute"}
+              {isPending ? "Creating block…" : "Create Block"}
             </button>
           </div>
         </div>

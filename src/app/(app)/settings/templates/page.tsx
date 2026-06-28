@@ -50,7 +50,7 @@ export default async function TemplatesPage() {
       <div>
         <h1 className="text-2xl font-semibold text-ink">Letter Templates</h1>
         <p className="text-sm text-muted mt-1">
-          Customize the default dispute letters for your organization. Changes apply to all new disputes.
+          Customize the default block letters for your organization. Changes apply to all new blocks.
         </p>
       </div>
 

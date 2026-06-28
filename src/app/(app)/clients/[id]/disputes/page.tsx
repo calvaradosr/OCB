@@ -44,12 +44,12 @@ export default async function DisputesPage({ params }: { params: Promise<{ id: s
         <span>›</span>
         <Link href={`/clients/${id}`} className="hover:text-ink">{client.firstName} {client.lastName}</Link>
         <span>›</span>
-        <span className="text-ink font-medium">Disputes</span>
+        <span className="text-ink font-medium">Blocks</span>
       </nav>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Dispute Rounds</h1>
+          <h1 className="text-2xl font-bold text-ink">Blocking Rounds</h1>
           <p className="text-sm text-muted mt-0.5">
             {disputes.length} round{disputes.length !== 1 ? "s" : ""} total
           </p>
@@ -70,13 +70,13 @@ export default async function DisputesPage({ params }: { params: Promise<{ id: s
               <polyline points="14 2 14 8 20 8"/>
             </svg>
           </div>
-          <p className="font-semibold text-ink mb-1">No dispute rounds yet</p>
-          <p className="text-sm text-muted mb-4">Import a credit report, flag items, then start a dispute round.</p>
+          <p className="font-semibold text-ink mb-1">No blocking rounds yet</p>
+          <p className="text-sm text-muted mb-4">Import a credit report, flag items, then start a blocking round.</p>
           <Link
             href={`/clients/${id}/disputes/new`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
           >
-            Start first dispute →
+            Start first block →
           </Link>
         </div>
       ) : (
@@ -146,7 +146,7 @@ export default async function DisputesPage({ params }: { params: Promise<{ id: s
                     </div>
                     <div className="text-center">
                       <p className={`text-lg font-bold ${counts.deleted > 0 ? "text-success" : "text-muted"}`}>{counts.deleted}</p>
-                      <p className="text-xs text-muted">Deleted</p>
+                      <p className="text-xs text-muted">Blocked</p>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-muted">{counts.pending}</p>
