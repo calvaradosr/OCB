@@ -15,9 +15,10 @@
  * parseDateString) live in @/lib/bureau-parse and are unit-tested there.
  */
 
-import type { Page, ElementHandle } from "playwright"
+import type { Page } from "playwright"
 import type { BureauService } from "@prisma/client"
 import { mapAccountType, parseBalance, parseDateString } from "@/lib/bureau-parse"
+import { parseIdentityIQ } from "@/lib/bureau-iiq"
 
 export interface ParsedAccount {
   creditorName: string
@@ -40,147 +41,12 @@ export const EMPTY_SCORES: ParsedScores = { experian: null, equifax: null, trans
 
 // ─── IdentityIQ report parser ────────────────────────────────────────────────
 
+// IdentityIQ uses the same column-positional model as the CreditRepairCloud
+// export, so the parser lives in @/lib/bureau-iiq (extract + pure normalize,
+// unit-tested there). This thin wrapper keeps the historical call site stable.
 export async function parseIdentityIQReport(page: Page): Promise<ParsedAccount[]> {
-  const accounts: ParsedAccount[] = []
-
-  // IdentityIQ renders account rows — we attempt multiple selector strategies
-  // as the site's class names change periodically
-  const rows = await page.$$(
-    [
-      ".account-row",
-      "[class*='AccountRow']",
-      "[class*='account-row']",
-      ".tradeline-row",
-      "[data-account-name]",
-      "tr[class*='account']",
-    ].join(", ")
-  )
-
-  for (const row of rows) {
-    try {
-      // Creditor name
-      const nameEl = await row.$(
-        ".account-name, [data-account-name], [class*='creditor-name'], [class*='account-name'], td:first-child"
-      )
-      const creditorName = (await nameEl?.textContent())?.trim() ?? ""
-      if (!creditorName) continue
-
-      // Account number
-      const acctEl = await row.$(
-        ".account-number, [data-account-number], [class*='account-number']"
-      )
-      const accountNumberMasked = (await acctEl?.textContent())?.trim() ?? ""
-
-      // Account type
-      const typeEl = await row.$(
-        ".account-type, [data-account-type], [class*='account-type']"
-      )
-      const typeText = (await typeEl?.textContent())?.trim().toUpperCase() ?? ""
-      const accountType = mapAccountType(typeText)
-
-      // Balance
-      const balEl = await row.$(".balance, [data-balance], [class*='balance']")
-      const balance = parseBalance((await balEl?.textContent())?.trim() ?? "")
-
-      // Date opened
-      const dateEl = await row.$(
-        ".date-opened, [data-date-opened], [class*='date-opened']"
-      )
-      const dateText = (await dateEl?.textContent())?.trim() ?? ""
-      const dateOpened = parseDateString(dateText)
-
-      // Bureau presence — look for per-bureau sections or indicators
-      // IIQ often uses classes like .exp, .eqf, .tu or .experian, .equifax, .transunion
-      const expEl = await row.$(".exp, .experian, [class*='exp-'], [data-bureau='experian']")
-      const eqEl = await row.$(".eq, .eqf, .equifax, [class*='eq-'], [data-bureau='equifax']")
-      const tuEl = await row.$(".tu, .transunion, [class*='tu-'], [data-bureau='transunion']")
-
-      // When per-bureau elements exist, trust their "is reporting" signal.
-      // Otherwise default to present on all three: this is IdentityIQ's
-      // 3-bureau report, so an account with no per-bureau breakdown should
-      // appear under every bureau (not be silently dropped from all of them).
-      const onExperian = expEl ? await isBureauReporting(expEl) : true
-      const onEquifax = eqEl ? await isBureauReporting(eqEl) : true
-      const onTransunion = tuEl ? await isBureauReporting(tuEl) : true
-
-      accounts.push({
-        creditorName,
-        accountNumberMasked,
-        type: accountType,
-        onExperian,
-        onEquifax,
-        onTransunion,
-        balance,
-        dateOpened,
-      })
-    } catch {
-      // Skip malformed rows
-    }
-  }
-
-  // If the row-based approach found nothing, try a table-based fallback
-  if (accounts.length === 0) {
-    return parseIdentityIQTable(page)
-  }
-
+  const { accounts } = await parseIdentityIQ(page)
   return accounts
-}
-
-async function parseIdentityIQTable(page: Page): Promise<ParsedAccount[]> {
-  const accounts: ParsedAccount[] = []
-
-  // Fallback: look for any table with account data
-  const tables = await page.$$("table")
-  for (const table of tables) {
-    const headers = await table.$$eval("th", els => els.map(el => el.textContent?.trim().toLowerCase() ?? ""))
-    const hasCreditorCol = headers.some(h => h.includes("creditor") || h.includes("account") || h.includes("company"))
-    if (!hasCreditorCol) continue
-
-    const trs = await table.$$("tbody tr")
-    for (const tr of trs) {
-      try {
-        const cells = await tr.$$eval("td", els => els.map(el => el.textContent?.trim() ?? ""))
-        if (cells.length < 2) continue
-
-        const creditorName = cells[0] ?? ""
-        if (!creditorName) continue
-
-        const accountNumberMasked = cells[1] ?? ""
-        const typeText = (cells[2] ?? "").toUpperCase()
-        const balance = parseBalance(cells[3] ?? "")
-        const dateOpened = parseDateString(cells[4] ?? "")
-
-        accounts.push({
-          creditorName,
-          accountNumberMasked,
-          type: mapAccountType(typeText),
-          onExperian: true,
-          onEquifax: true,
-          onTransunion: true,
-          balance,
-          dateOpened,
-        })
-      } catch {
-        // skip
-      }
-    }
-    if (accounts.length > 0) break
-  }
-
-  return accounts
-}
-
-async function isBureauReporting(el: ElementHandle): Promise<boolean> {
-  // Check if the bureau section indicates the item is reporting there
-  const text = (await el.textContent()) ?? ""
-  const cls = (await el.getAttribute("class")) ?? ""
-  // "N/A", "—", "not reporting" typically means not on that bureau
-  if (/not reporting|n\/a|—|does not appear/i.test(text)) return false
-  // If it has content (a status, amount, date) — it's reporting
-  if (text.trim().length > 2 && !/^\s*$/.test(text)) return true
-  // Class-based "active" / "reporting" indicators
-  if (/reporting|active|open/i.test(cls)) return true
-  return false
 }
 
 // ─── Generic report parser ────────────────────────────────────────────────────
@@ -305,6 +171,14 @@ const SCORE_COVERAGE: Record<BureauService, Array<keyof ParsedScores>> = {
 export async function parseScores(page: Page, service: BureauService): Promise<ParsedScores> {
   const wanted = SCORE_COVERAGE[service] ?? []
   if (wanted.length === 0) return { ...EMPTY_SCORES }
+
+  // IdentityIQ keeps scores in a column-positional table (#CreditScore) keyed by
+  // headerTUC/EXP/EQF, which the attribute heuristic below can't see — read them
+  // positionally from the same extractor the account parser uses.
+  if (service === "IDENTITY_IQ") {
+    const { scores } = await parseIdentityIQ(page)
+    return scores
+  }
 
   // Run entirely in the page context — no TS types available inside evaluate().
   // The 3-digit-in-range matching mirrors extractScore() in @/lib/bureau-parse
