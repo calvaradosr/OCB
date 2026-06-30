@@ -8,7 +8,7 @@ export function RevealPII({
   placeholder = "●●●–●●–●●●●",
 }: {
   clientId: string
-  field: "ssn" | "dob"
+  field: "ssn" | "dob" | "coAppSsn" | "coAppDob"
   placeholder?: string
 }) {
   const [value, setValue] = useState<string | null>(null)

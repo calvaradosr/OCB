@@ -11,18 +11,42 @@ type Props = {
   canAccessPII: boolean
 }
 
+type PrevAddr = {
+  addressLine1: string; addressLine2: string; city: string; state: string; zip: string
+  fromYear: string; toYear: string
+}
+
+const EMPTY_PREV_ADDR: PrevAddr = {
+  addressLine1: "", addressLine2: "", city: "", state: "", zip: "", fromYear: "", toYear: "",
+}
+
 type FormState = {
   firstName: string
   lastName: string
   email: string
   phone: string
+  phoneType: string
+  altPhone: string
+  altPhoneType: string
   addressLine1: string
   addressLine2: string
   city: string
   state: string
   zip: string
+  previousAddresses: PrevAddr[]
   ssn: string
   dob: string
+  employerName: string
+  occupation: string
+  monthlyIncome: string
+  leadSource: string
+  tags: string
+  coAppFirstName: string
+  coAppLastName: string
+  coAppEmail: string
+  coAppPhone: string
+  coAppSsn: string
+  coAppDob: string
   modules: string[]
   status: string
   assignedAgentId: string
@@ -30,14 +54,35 @@ type FormState = {
 }
 
 const INITIAL: FormState = {
-  firstName: "", lastName: "", email: "", phone: "",
+  firstName: "", lastName: "", email: "", phone: "", phoneType: "MOBILE",
+  altPhone: "", altPhoneType: "HOME",
   addressLine1: "", addressLine2: "", city: "", state: "", zip: "",
+  previousAddresses: [],
   ssn: "", dob: "",
+  employerName: "", occupation: "", monthlyIncome: "", leadSource: "", tags: "",
+  coAppFirstName: "", coAppLastName: "", coAppEmail: "", coAppPhone: "", coAppSsn: "", coAppDob: "",
   modules: ["CREDIT_REPAIR"],
   status: "LEAD",
   assignedAgentId: "",
   notes: "",
 }
+
+const PHONE_TYPES = [
+  { value: "MOBILE", label: "Mobile" },
+  { value: "HOME", label: "Home" },
+  { value: "WORK", label: "Work" },
+]
+
+const LEAD_SOURCES = [
+  { value: "", label: "—" },
+  { value: "WEBSITE", label: "Website" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "AFFILIATE", label: "Affiliate" },
+  { value: "GOOGLE", label: "Google" },
+  { value: "SOCIAL", label: "Social Media" },
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "OTHER", label: "Other" },
+]
 
 const MODULES = [
   { value: "CREDIT_REPAIR", label: "Credit Repair", desc: "3-bureau dispute workflow, letters, FCRA tracking" },
@@ -120,6 +165,16 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
       : [...form.modules, mod])
   }
 
+  function addPrevAddress() {
+    set("previousAddresses", [...form.previousAddresses, { ...EMPTY_PREV_ADDR }])
+  }
+  function setPrevAddress(i: number, key: keyof PrevAddr, val: string) {
+    set("previousAddresses", form.previousAddresses.map((a, idx) => idx === i ? { ...a, [key]: val } : a))
+  }
+  function removePrevAddress(i: number) {
+    set("previousAddresses", form.previousAddresses.filter((_, idx) => idx !== i))
+  }
+
   function canAdvance(): boolean {
     if (step === 1) return !!(form.firstName.trim() && form.lastName.trim() && (form.email.trim() || form.phone.trim()))
     return true
@@ -133,14 +188,29 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
       fd.append("lastName", form.lastName)
       fd.append("email", form.email)
       fd.append("phone", form.phone)
+      fd.append("phoneType", form.phoneType)
+      fd.append("altPhone", form.altPhone)
+      fd.append("altPhoneType", form.altPhoneType)
       fd.append("addressLine1", form.addressLine1)
       fd.append("addressLine2", form.addressLine2)
       fd.append("city", form.city)
       fd.append("state", form.state)
       fd.append("zip", form.zip)
+      fd.append("previousAddresses", JSON.stringify(form.previousAddresses))
+      fd.append("employerName", form.employerName)
+      fd.append("occupation", form.occupation)
+      fd.append("monthlyIncome", form.monthlyIncome)
+      fd.append("leadSource", form.leadSource)
+      fd.append("tags", form.tags)
+      fd.append("coAppFirstName", form.coAppFirstName)
+      fd.append("coAppLastName", form.coAppLastName)
+      fd.append("coAppEmail", form.coAppEmail)
+      fd.append("coAppPhone", form.coAppPhone)
       if (canAccessPII) {
         fd.append("ssn", form.ssn)
         fd.append("dob", form.dob)
+        fd.append("coAppSsn", form.coAppSsn)
+        fd.append("coAppDob", form.coAppDob)
       }
       fd.append("status", form.status)
       fd.append("assignedAgentId", form.assignedAgentId)
@@ -196,6 +266,23 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
               <Field label="Email" value={form.email} onChange={v => set("email", v)} type="email" placeholder="client@example.com" />
               <Field label="Phone" value={form.phone} onChange={v => set("phone", v)} type="tel" placeholder="(555) 000-0000" />
             </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-muted mb-1">Phone type</label>
+                <select value={form.phoneType} onChange={e => set("phoneType", e.target.value)}
+                  className="w-full rounded-lg border border-secondary-soft px-3 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary">
+                  {PHONE_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+              <Field label="Alt. phone" value={form.altPhone} onChange={v => set("altPhone", v)} type="tel" placeholder="(555) 000-0000" />
+              <div>
+                <label className="block text-sm text-muted mb-1">Alt. phone type</label>
+                <select value={form.altPhoneType} onChange={e => set("altPhoneType", e.target.value)}
+                  className="w-full rounded-lg border border-secondary-soft px-3 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary">
+                  {PHONE_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+            </div>
             <p className="text-xs text-muted bg-secondary-soft/50 rounded-lg px-3 py-2">
               At least one of email or phone is required.
             </p>
@@ -214,6 +301,37 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
               <Field label="ZIP" value={form.zip} onChange={v => set("zip", v)} placeholder="90210" autoComplete="postal-code" />
             </div>
             <p className="text-xs text-muted">Address is used on dispute letters — enter the client&apos;s current mailing address.</p>
+
+            {/* Previous addresses (CRC lists ~2yrs of history on bureau letters) */}
+            <div className="pt-2 border-t border-secondary-soft">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-ink">Previous addresses</p>
+                <button type="button" onClick={addPrevAddress} className="text-xs text-primary hover:underline">+ Add previous address</button>
+              </div>
+              {form.previousAddresses.length === 0 && (
+                <p className="text-xs text-muted">Optional — adds prior addresses bureaus may have on file.</p>
+              )}
+              <div className="space-y-3">
+                {form.previousAddresses.map((a, i) => (
+                  <div key={i} className="rounded-lg border border-secondary-soft p-3 space-y-2 bg-secondary-soft/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted">Address {i + 1}</span>
+                      <button type="button" onClick={() => removePrevAddress(i)} className="text-xs text-muted hover:text-danger">Remove</button>
+                    </div>
+                    <Field label="Street address" value={a.addressLine1} onChange={v => setPrevAddress(i, "addressLine1", v)} placeholder="123 Old St" />
+                    <div className="grid grid-cols-3 gap-3">
+                      <Field label="City" value={a.city} onChange={v => setPrevAddress(i, "city", v)} />
+                      <Field label="State" value={a.state} onChange={v => setPrevAddress(i, "state", v)} placeholder="CA" />
+                      <Field label="ZIP" value={a.zip} onChange={v => setPrevAddress(i, "zip", v)} placeholder="90210" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="From year" value={a.fromYear} onChange={v => setPrevAddress(i, "fromYear", v)} placeholder="2018" />
+                      <Field label="To year" value={a.toYear} onChange={v => setPrevAddress(i, "toYear", v)} placeholder="2021" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -230,6 +348,14 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
               <Field label="Date of birth" value={form.dob} onChange={v => set("dob", v)} type="date" />
             </div>
             <p className="text-xs text-muted">Leave blank if not available now — can be added later from the client profile.</p>
+
+            <div className="pt-2 border-t border-secondary-soft">
+              <p className="text-sm font-medium text-ink mb-2">Co-applicant identity (optional)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Co-applicant SSN" value={form.coAppSsn} onChange={v => set("coAppSsn", v)} type="password" placeholder="###-##-####" autoComplete="off" />
+                <Field label="Co-applicant DOB" value={form.coAppDob} onChange={v => set("coAppDob", v)} type="date" />
+              </div>
+            </div>
           </div>
         )}
 
@@ -258,6 +384,40 @@ export default function IntakeWizard({ agents, canAccessPII }: Props) {
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Background */}
+            <div className="space-y-4 pt-1">
+              <p className="text-sm text-ink font-medium">Background</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Employer" value={form.employerName} onChange={v => set("employerName", v)} placeholder="Acme Corp" />
+                <Field label="Occupation" value={form.occupation} onChange={v => set("occupation", v)} placeholder="Driver" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Monthly income ($)" value={form.monthlyIncome} onChange={v => set("monthlyIncome", v)} type="text" placeholder="4500" />
+                <div>
+                  <label className="block text-sm text-muted mb-1">Lead source</label>
+                  <select value={form.leadSource} onChange={e => set("leadSource", e.target.value)}
+                    className="w-full rounded-lg border border-secondary-soft px-3 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary">
+                    {LEAD_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <Field label="Tags (comma-separated)" value={form.tags} onChange={v => set("tags", v)} placeholder="VIP, Spanish, Refi-2026" />
+            </div>
+
+            {/* Co-applicant / spouse */}
+            <div className="space-y-4 pt-1 border-t border-secondary-soft">
+              <p className="text-sm text-ink font-medium">Co-applicant / spouse (optional)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="First name" value={form.coAppFirstName} onChange={v => set("coAppFirstName", v)} />
+                <Field label="Last name" value={form.coAppLastName} onChange={v => set("coAppLastName", v)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Email" value={form.coAppEmail} onChange={v => set("coAppEmail", v)} type="email" placeholder="co@example.com" />
+                <Field label="Phone" value={form.coAppPhone} onChange={v => set("coAppPhone", v)} type="tel" placeholder="(555) 000-0000" />
+              </div>
+              {canAccessPII && <p className="text-xs text-muted">Co-applicant SSN / DOB are entered on the Identity step.</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
