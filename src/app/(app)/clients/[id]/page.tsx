@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import { auth } from "@/auth"
@@ -51,6 +52,28 @@ function FCRAClockBadge({ sentAt, dueAt }: { sentAt: Date | null; dueAt: Date | 
   )
 }
 
+function Detail({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <span className="text-muted block text-xs">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+const PHONE_TYPE_LABELS: Record<string, string> = { MOBILE: "Mobile", HOME: "Home", WORK: "Work" }
+function phoneTypeLabel(v: string) { return PHONE_TYPE_LABELS[v] ?? v }
+
+const LEAD_SOURCE_LABELS: Record<string, string> = {
+  WEBSITE: "Website", REFERRAL: "Referral", AFFILIATE: "Affiliate", GOOGLE: "Google",
+  SOCIAL: "Social Media", WALK_IN: "Walk-in", OTHER: "Other",
+}
+function leadSourceLabel(v: string) { return LEAD_SOURCE_LABELS[v] ?? v }
+
+function formatCents(cents: number) {
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+}
+
 export default async function ClientProfilePage({
   params,
 }: {
@@ -66,6 +89,7 @@ export default async function ClientProfilePage({
     where: { id, orgId },
     include: {
       assignedAgent: { select: { id: true, name: true } },
+      previousAddresses: { orderBy: { sortOrder: "asc" } },
       documents: { orderBy: { createdAt: "desc" } },
       notes: {
         include: { author: { select: { name: true } } },
@@ -88,6 +112,15 @@ export default async function ClientProfilePage({
   const timeline = mergeTimeline(client.notes as Parameters<typeof mergeTimeline>[0], auditEvents as Parameters<typeof mergeTimeline>[1])
 
   const isCR = client.modules.includes("CREDIT_REPAIR")
+
+  const hasClientDetails = !!(
+    client.altPhone || client.employerName || client.occupation ||
+    client.monthlyIncomeCents != null || client.leadSource || client.tags.length > 0
+  )
+  const hasCoApp = !!(
+    client.coAppFirstName || client.coAppLastName || client.coAppEmail ||
+    client.coAppPhone || client.coAppSsnEncrypted || client.coAppDobEncrypted
+  )
 
   // Credit Repair data
   const [latestReport, scoreHistory] = isCR
@@ -279,6 +312,71 @@ export default async function ClientProfilePage({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {hasClientDetails && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+            {client.altPhone && (
+              <Detail label="Alt. phone">
+                <a href={`tel:${client.altPhone}`} className="text-ink hover:text-primary">{client.altPhone}</a>
+                {client.altPhoneType && <span className="text-muted"> ({phoneTypeLabel(client.altPhoneType)})</span>}
+              </Detail>
+            )}
+            {client.employerName && <Detail label="Employer"><span className="text-ink">{client.employerName}</span></Detail>}
+            {client.occupation && <Detail label="Occupation"><span className="text-ink">{client.occupation}</span></Detail>}
+            {client.monthlyIncomeCents != null && (
+              <Detail label="Monthly income"><span className="text-ink">{formatCents(client.monthlyIncomeCents)}</span></Detail>
+            )}
+            {client.leadSource && <Detail label="Lead source"><span className="text-ink">{leadSourceLabel(client.leadSource)}</span></Detail>}
+            {client.tags.length > 0 && (
+              <Detail label="Tags">
+                <span className="flex flex-wrap gap-1">
+                  {client.tags.map(t => (
+                    <span key={t} className="text-xs bg-secondary-soft text-ink rounded px-2 py-0.5">{t}</span>
+                  ))}
+                </span>
+              </Detail>
+            )}
+          </div>
+        )}
+
+        {hasCoApp && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft">
+            <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-2">Co-applicant / Spouse</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+              {(client.coAppFirstName || client.coAppLastName) && (
+                <Detail label="Name"><span className="text-ink">{[client.coAppFirstName, client.coAppLastName].filter(Boolean).join(" ")}</span></Detail>
+              )}
+              {client.coAppEmail && <Detail label="Email"><a href={`mailto:${client.coAppEmail}`} className="text-ink hover:text-primary">{client.coAppEmail}</a></Detail>}
+              {client.coAppPhone && <Detail label="Phone"><a href={`tel:${client.coAppPhone}`} className="text-ink hover:text-primary">{client.coAppPhone}</a></Detail>}
+              {client.coAppSsnEncrypted && (
+                <Detail label="SSN">
+                  {canReadPII ? <RevealPII clientId={id} field="coAppSsn" /> : <span className="font-mono text-muted">●●●–●●–●●●●</span>}
+                </Detail>
+              )}
+              {client.coAppDobEncrypted && (
+                <Detail label="DOB">
+                  {canReadPII ? <RevealPII clientId={id} field="coAppDob" placeholder="●●/●●/●●●●" /> : <span className="font-mono text-muted">●●/●●/●●●●</span>}
+                </Detail>
+              )}
+            </div>
+          </div>
+        )}
+
+        {client.previousAddresses.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-secondary-soft">
+            <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-2">Previous Addresses</p>
+            <ul className="space-y-1 text-sm text-muted">
+              {client.previousAddresses.map(a => (
+                <li key={a.id}>
+                  {[a.addressLine1, a.addressLine2, a.city, a.state, a.zip].filter(Boolean).join(", ")}
+                  {(a.fromYear || a.toYear) && (
+                    <span className="text-xs"> ({a.fromYear ?? "?"}–{a.toYear ?? "present"})</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

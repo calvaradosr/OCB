@@ -18,7 +18,10 @@ export default async function EditClientPage({
   const { id } = await params
 
   const [client, agents] = await Promise.all([
-    db.client.findUnique({ where: { id, orgId } }),
+    db.client.findUnique({
+      where: { id, orgId },
+      include: { previousAddresses: { orderBy: { sortOrder: "asc" } } },
+    }),
     db.user.findMany({
       where: { orgId, role: { in: ["AGENT", "MANAGER", "ADMIN"] }, active: true },
       select: { id: true, name: true },
@@ -46,11 +49,34 @@ export default async function EditClientPage({
           lastName: client.lastName,
           email: client.email ?? "",
           phone: client.phone ?? "",
+          phoneType: client.phoneType ?? "MOBILE",
+          altPhone: client.altPhone ?? "",
+          altPhoneType: client.altPhoneType ?? "HOME",
           addressLine1: client.addressLine1 ?? "",
           addressLine2: client.addressLine2 ?? "",
           city: client.city ?? "",
           state: client.state ?? "",
           zip: client.zip ?? "",
+          previousAddresses: client.previousAddresses.map(a => ({
+            addressLine1: a.addressLine1 ?? "",
+            addressLine2: a.addressLine2 ?? "",
+            city: a.city ?? "",
+            state: a.state ?? "",
+            zip: a.zip ?? "",
+            fromYear: a.fromYear?.toString() ?? "",
+            toYear: a.toYear?.toString() ?? "",
+          })),
+          employerName: client.employerName ?? "",
+          occupation: client.occupation ?? "",
+          monthlyIncome: client.monthlyIncomeCents != null
+            ? (client.monthlyIncomeCents / 100).toString()
+            : "",
+          leadSource: client.leadSource ?? "",
+          tags: client.tags.join(", "),
+          coAppFirstName: client.coAppFirstName ?? "",
+          coAppLastName: client.coAppLastName ?? "",
+          coAppEmail: client.coAppEmail ?? "",
+          coAppPhone: client.coAppPhone ?? "",
           status: client.status,
           assignedAgentId: client.assignedAgentId ?? "",
           modules: client.modules,

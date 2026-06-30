@@ -161,11 +161,29 @@ model Client {
   // PII stored encrypted at the application layer (src/lib/crypto.ts)
   ssnEncrypted    String?
   dobEncrypted    String?
+  phoneType       String?  // MOBILE | HOME | WORK
+  altPhone        String?
+  altPhoneType    String?  // MOBILE | HOME | WORK
   addressLine1    String?
   addressLine2    String?
   city            String?
   state           String?
   zip             String?
+  // CRC-parity intake fields
+  employerName    String?
+  occupation      String?
+  monthlyIncomeCents Int?
+  leadSource      String?  // WEBSITE | REFERRAL | AFFILIATE | GOOGLE | SOCIAL | WALK_IN | OTHER
+  tags            String[] @default([])
+  // Co-applicant / spouse. PII (SSN/DOB) encrypted at the application layer
+  // (src/lib/crypto.ts), same as the primary client.
+  coAppFirstName    String?
+  coAppLastName     String?
+  coAppEmail        String?
+  coAppPhone        String?
+  coAppSsnEncrypted String?
+  coAppDobEncrypted String?
+  previousAddresses ClientAddress[]
   status          String   @default("LEAD") // LEAD | CONSULT | SIGNED | ACTIVE | PAUSED | COMPLETE
   modules         String[] @default(["CREDIT_REPAIR"]) // CREDIT_REPAIR | LOAN | TRADELINE
   assignedAgent   User?    @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
@@ -193,6 +211,26 @@ model Client {
   updatedAt       DateTime @updatedAt
 
   @@index([status, assignedAgentId])
+}
+
+// Prior addresses (CRC collects ~2 years of address history; they are also
+// listed on bureau block letters to help the bureau match the consumer file).
+// The current address stays denormalized on Client; this holds PREVIOUS only.
+model ClientAddress {
+  id           String  @id @default(cuid())
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  zip          String?
+  fromYear     Int?
+  toYear       Int?
+  sortOrder    Int     @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([clientId])
 }
 
 model CreditReport {
@@ -311,6 +349,8 @@ model Note {
   author    User?    @relation(fields: [authorId], references: [id])
   authorId  String?
   body      String
+  pinned    Boolean  @default(false)
+  pinnedAt  DateTime?
   createdAt DateTime @default(now())
 
   @@index([clientId])
