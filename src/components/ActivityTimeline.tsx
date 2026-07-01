@@ -1,6 +1,8 @@
+import { PinNoteButton } from "./PinNoteButton"
+
 // Combines Notes and AuditLog entries into a single chronological feed.
 type TimelineItem =
-  | { kind: "note"; id: string; body: string; authorName: string; createdAt: Date }
+  | { kind: "note"; id: string; body: string; authorName: string; createdAt: Date; pinned: boolean }
   | { kind: "event"; id: string; action: string; detail: unknown; actorName: string | null; createdAt: Date }
 
 function formatDate(d: Date) {
@@ -51,14 +53,14 @@ function NoteBody({ body }: { body: string }) {
   return <p className="text-sm text-ink whitespace-pre-wrap">{body}</p>
 }
 
-export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
+export function ActivityTimeline({ items, canWrite = false }: { items: TimelineItem[]; canWrite?: boolean }) {
   if (items.length === 0) {
     return <p className="text-sm text-muted py-4">No activity yet.</p>
   }
 
   return (
     <ol className="relative border-l border-secondary-soft ml-3 space-y-0">
-      {items.map((item, i) => (
+      {items.map((item) => (
         <li key={item.id} className="mb-6 ml-6">
           <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-white border-2 border-secondary-soft">
             {item.kind === "note" ? (
@@ -71,8 +73,13 @@ export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
           </span>
 
           {item.kind === "note" ? (
-            <div className="bg-secondary-soft rounded-lg p-3">
-              <NoteBody body={item.body} />
+            <div className={`rounded-lg p-3 ${item.pinned ? "bg-primary/5 border border-primary/20" : "bg-secondary-soft"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <NoteBody body={item.body} />
+                {(canWrite || item.pinned) && (
+                  <PinNoteButton noteId={item.id} pinned={item.pinned} canWrite={canWrite} />
+                )}
+              </div>
               <p className="text-xs text-muted mt-1">
                 {item.authorName} · {formatDate(item.createdAt)}
               </p>
@@ -92,9 +99,10 @@ export function ActivityTimeline({ items }: { items: TimelineItem[] }) {
   )
 }
 
-// Merges and sorts notes + audit log entries into one feed, newest first.
+// Merges and sorts notes + audit log entries into one feed. Pinned notes float
+// to the top; the rest are newest-first.
 export function mergeTimeline(
-  notes: Array<{ id: string; body: string; author: { name: string }; createdAt: Date }>,
+  notes: Array<{ id: string; body: string; author: { name: string }; createdAt: Date; pinned?: boolean }>,
   events: Array<{
     id: string
     action: string
@@ -109,6 +117,7 @@ export function mergeTimeline(
     body: n.body,
     authorName: n.author.name,
     createdAt: n.createdAt,
+    pinned: n.pinned ?? false,
   }))
 
   const eventItems: TimelineItem[] = events.map(e => ({
@@ -120,7 +129,10 @@ export function mergeTimeline(
     createdAt: e.createdAt,
   }))
 
-  return [...noteItems, ...eventItems].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
+  return [...noteItems, ...eventItems].sort((a, b) => {
+    const aPinned = a.kind === "note" && a.pinned ? 1 : 0
+    const bPinned = b.kind === "note" && b.pinned ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
 }

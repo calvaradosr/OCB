@@ -1,4 +1,5 @@
 "use server"
+import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { can } from "@/lib/rbac"
@@ -55,5 +56,25 @@ export async function deleteNote(noteId: string): Promise<{ error?: string }> {
   }
 
   await db.note.delete({ where: { id: noteId } })
+  return {}
+}
+
+// Pins or unpins a note so it sorts to the top of the activity feed.
+export async function togglePinNote(noteId: string): Promise<{ error?: string }> {
+  const session = await auth()
+  if (!session?.user?.id) return { error: "Unauthorized" }
+  if (!can(session.user.role, "clients:write")) return { error: "Unauthorized" }
+
+  const note = await db.note.findUnique({ where: { id: noteId } })
+  if (!note) return { error: "Not found" }
+
+  await db.note.update({
+    where: { id: noteId },
+    data: note.pinned
+      ? { pinned: false, pinnedAt: null }
+      : { pinned: true, pinnedAt: new Date() },
+  })
+
+  revalidatePath(`/clients/${note.clientId}`)
   return {}
 }

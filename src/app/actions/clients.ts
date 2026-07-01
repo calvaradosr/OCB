@@ -14,16 +14,31 @@ const clientSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
+  phoneType: z.string().optional(),
+  altPhone: z.string().optional(),
+  altPhoneType: z.string().optional(),
   addressLine1: z.string().optional(),
   addressLine2: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   zip: z.string().optional(),
+  employerName: z.string().optional(),
+  occupation: z.string().optional(),
+  leadSource: z.string().optional(),
   status: z.string().default("LEAD"),
   assignedAgentId: z.string().optional().or(z.literal("")),
   // PII (plaintext in form, encrypted before save)
   ssn: z.string().optional(),
   dob: z.string().optional(),
+  // Co-applicant / spouse
+  coAppFirstName: z.string().optional(),
+  coAppLastName: z.string().optional(),
+  coAppEmail: z.string().email().optional().or(z.literal("")),
+  coAppPhone: z.string().optional(),
+  coAppSsn: z.string().optional(),
+  coAppDob: z.string().optional(),
+  // Special-handled (parsed, not spread directly): dollars → cents
+  monthlyIncome: z.string().optional(),
 })
 
 function parseModules(formData: FormData): string[] {
@@ -32,6 +47,50 @@ function parseModules(formData: FormData): string[] {
   if (formData.get("mod_loan")) mods.push("LOAN")
   if (formData.get("mod_tradeline")) mods.push("TRADELINE")
   return mods.length ? mods : ["CREDIT_REPAIR"]
+}
+
+function parseTags(formData: FormData): string[] {
+  const raw = (formData.get("tags") as string) ?? ""
+  return raw.split(",").map(t => t.trim()).filter(Boolean).slice(0, 20)
+}
+
+type PrevAddrInput = {
+  addressLine1?: string; addressLine2?: string; city?: string
+  state?: string; zip?: string; fromYear?: string | number; toYear?: string | number
+}
+
+// Previous addresses arrive as a JSON string from the client form. Returns
+// Prisma nested-create rows (sortOrder preserves input order). Blank rows drop.
+function parsePreviousAddresses(formData: FormData) {
+  const raw = (formData.get("previousAddresses") as string) ?? ""
+  if (!raw.trim()) return []
+  let rows: PrevAddrInput[] = []
+  try { rows = JSON.parse(raw) } catch { return [] }
+  if (!Array.isArray(rows)) return []
+  const year = (v: unknown) => {
+    const n = parseInt(String(v ?? ""), 10)
+    return Number.isFinite(n) && n >= 1900 && n <= 2100 ? n : null
+  }
+  return rows
+    .filter(r => r && (r.addressLine1 || r.city || r.state || r.zip))
+    .slice(0, 10)
+    .map((r, i) => ({
+      addressLine1: r.addressLine1 || null,
+      addressLine2: r.addressLine2 || null,
+      city: r.city || null,
+      state: r.state || null,
+      zip: r.zip || null,
+      fromYear: year(r.fromYear),
+      toYear: year(r.toYear),
+      sortOrder: i,
+    }))
+}
+
+// Dollars (string) → integer cents, or undefined when blank/invalid.
+function dollarsToCents(v: string | undefined): number | undefined {
+  if (!v?.trim()) return undefined
+  const n = parseFloat(v.replace(/[^0-9.]/g, ""))
+  return Number.isFinite(n) ? Math.round(n * 100) : undefined
 }
 
 export async function createClient(
@@ -47,7 +106,8 @@ export async function createClient(
   const parsed = clientSchema.safeParse(raw)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Validation error" }
 
-  const { ssn, dob, assignedAgentId, ...rest } = parsed.data
+  const { ssn, dob, assignedAgentId, monthlyIncome, coAppSsn, coAppDob, coAppEmail, ...rest } = parsed.data
+  const prevAddresses = parsePreviousAddresses(formData)
 
   const client = await db.client.create({
     data: {
@@ -56,9 +116,15 @@ export async function createClient(
       email: rest.email || undefined,
       status: isValidStatus(rest.status) ? rest.status : "LEAD",
       modules: parseModules(formData),
+      tags: parseTags(formData),
       assignedAgentId: assignedAgentId || undefined,
+      monthlyIncomeCents: dollarsToCents(monthlyIncome),
       ssnEncrypted: ssn ? encryptPII(ssn) : undefined,
       dobEncrypted: dob ? encryptPII(dob) : undefined,
+      coAppEmail: coAppEmail || undefined,
+      coAppSsnEncrypted: coAppSsn ? encryptPII(coAppSsn) : undefined,
+      coAppDobEncrypted: coAppDob ? encryptPII(coAppDob) : undefined,
+      previousAddresses: prevAddresses.length ? { create: prevAddresses } : undefined,
     },
   })
 
@@ -126,20 +192,41 @@ export async function updateClient(
   const parsed = clientSchema.safeParse(raw)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Validation error" }
 
-  const { ssn, dob, assignedAgentId, ...rest } = parsed.data
+  const { ssn, dob, assignedAgentId, monthlyIncome, coAppSsn, coAppDob, coAppEmail, ...rest } = parsed.data
 
-  const updated = await db.client.update({
-    where: { id, orgId },
-    data: {
-      ...rest,
-      email: rest.email || undefined,
-      status: isValidStatus(rest.status) ? rest.status : undefined,
-      modules: parseModules(formData),
-      assignedAgentId: assignedAgentId || null,
-      ...(ssn ? { ssnEncrypted: encryptPII(ssn) } : {}),
-      ...(dob ? { dobEncrypted: encryptPII(dob) } : {}),
-    },
-  })
+  const clientData = {
+    ...rest,
+    email: rest.email || undefined,
+    status: isValidStatus(rest.status) ? rest.status : undefined,
+    modules: parseModules(formData),
+    tags: parseTags(formData),
+    assignedAgentId: assignedAgentId || null,
+    monthlyIncomeCents: dollarsToCents(monthlyIncome) ?? null,
+    coAppEmail: coAppEmail || null,
+    ...(ssn ? { ssnEncrypted: encryptPII(ssn) } : {}),
+    ...(dob ? { dobEncrypted: encryptPII(dob) } : {}),
+    ...(coAppSsn ? { coAppSsnEncrypted: encryptPII(coAppSsn) } : {}),
+    ...(coAppDob ? { coAppDobEncrypted: encryptPII(coAppDob) } : {}),
+  }
+
+  // Only touch the previous-address list when the form actually submitted it.
+  // The destructive deleteMany must NOT run for callers that don't manage
+  // addresses (e.g. a partial form) — otherwise saving would wipe the history.
+  const updated = formData.has("previousAddresses")
+    ? await db.$transaction(async tx => {
+        // Edited as a whole list — replace atomically so removed rows drop and
+        // order is preserved.
+        await tx.clientAddress.deleteMany({ where: { clientId: id } })
+        const prevAddresses = parsePreviousAddresses(formData)
+        return tx.client.update({
+          where: { id, orgId },
+          data: {
+            ...clientData,
+            previousAddresses: prevAddresses.length ? { create: prevAddresses } : undefined,
+          },
+        })
+      })
+    : await db.client.update({ where: { id, orgId }, data: clientData })
 
   await writeAuditLog({
     actorId: session.user.id,
@@ -172,7 +259,7 @@ export async function updateClientStatus(id: string, status: ClientStatus) {
 // Decrypts a PII field and writes an audit log. Requires clients:read_pii.
 export async function revealPII(
   clientId: string,
-  field: "ssn" | "dob"
+  field: "ssn" | "dob" | "coAppSsn" | "coAppDob"
 ): Promise<{ value: string } | null> {
   const session = await auth()
   if (!session?.user?.id) return null
@@ -181,7 +268,11 @@ export async function revealPII(
   const client = await db.client.findUnique({ where: { id: clientId } })
   if (!client) return null
 
-  const encrypted = field === "ssn" ? client.ssnEncrypted : client.dobEncrypted
+  const encrypted =
+    field === "ssn" ? client.ssnEncrypted :
+    field === "dob" ? client.dobEncrypted :
+    field === "coAppSsn" ? client.coAppSsnEncrypted :
+    client.coAppDobEncrypted
   if (!encrypted) return null
 
   const value = decryptPII(encrypted)
