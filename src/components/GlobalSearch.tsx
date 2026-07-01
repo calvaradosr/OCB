@@ -94,7 +94,7 @@ export function GlobalSearch() {
     if (e.key === "Enter" && results[selected]) navigate(results[selected].href)
   }
 
-  const TYPE_LABELS: Record<string, string> = { client: "Client", dispute: "Dispute", loan: "Loan" }
+  const TYPE_LABELS: Record<string, string> = { client: "Client", dispute: "Block", loan: "Loan" }
   const TYPE_COLORS: Record<string, string> = {
     client: "bg-primary/10 text-primary",
     dispute: "bg-warning/10 text-warning",
@@ -138,7 +138,7 @@ export function GlobalSearch() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search clients, disputes, loans…"
+            placeholder="Search clients, blocks, loans…"
             className="flex-1 text-sm text-ink placeholder:text-muted bg-transparent focus:outline-none"
           />
           {isPending && (
@@ -179,7 +179,7 @@ export function GlobalSearch() {
 
         {!query.trim() && (
           <div className="px-4 py-4 text-xs text-muted space-y-1">
-            <p>Search across clients, disputes, and loans</p>
+            <p>Search across clients, blocks, and loans</p>
             <p>Use <kbd className="font-mono bg-secondary-soft px-1 rounded">↑↓</kbd> to navigate, <kbd className="font-mono bg-secondary-soft px-1 rounded">↵</kbd> to open</p>
           </div>
         )}

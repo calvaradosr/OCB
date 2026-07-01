@@ -48,8 +48,8 @@ const OUTCOME_PILL: Record<string, string> = {
   NO_RESPONSE: "bg-muted/10 text-muted",
 }
 const OUTCOME_LABEL: Record<string, string> = {
-  PENDING: "In Dispute",
-  DELETED: "Deleted",
+  PENDING: "Blocking",
+  DELETED: "Blocked",
   REPAIRED: "Repaired",
   VERIFIED: "Verified",
   NO_RESPONSE: "No Response",
@@ -113,7 +113,7 @@ export default async function ReportViewPage({
           href={`/clients/${id}/disputes/new`}
           className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
         >
-          Start Dispute Wizard →
+          Start Blocking Wizard →
         </Link>
       </div>
 
@@ -151,10 +151,10 @@ export default async function ReportViewPage({
           <span className="text-xs bg-warning/10 text-warning px-2 py-0.5 rounded-full font-medium">{flaggedCount} flagged</span>
         )}
         {inDisputeCount > 0 && (
-          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{inDisputeCount} in dispute</span>
+          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{inDisputeCount} blocking</span>
         )}
         {deletedCount > 0 && (
-          <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full font-medium">{deletedCount} deleted</span>
+          <span className="text-xs bg-success/10 text-success px-2 py-0.5 rounded-full font-medium">{deletedCount} blocked</span>
         )}
       </div>
 
@@ -163,7 +163,7 @@ export default async function ReportViewPage({
         <div className="bg-secondary-soft/30 px-5 py-3 flex items-center justify-between border-b border-secondary-soft">
           <h2 className="font-semibold text-ink">Account Grid</h2>
           <span className="text-xs text-muted flex items-center gap-1">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-danger align-middle" /> = reporting on bureau · click 🚩 to flag for dispute
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-danger align-middle" /> = reporting on bureau · click 🚩 to flag for blocking
           </span>
         </div>
         {report.items.length === 0 ? (
@@ -182,7 +182,7 @@ export default async function ReportViewPage({
                   <th className="py-3 px-4 text-right">Balance</th>
                   <th className="py-3 px-4 text-left">Opened</th>
                   <th className="py-3 px-4 text-left">FCRA SOL</th>
-                  <th className="py-3 px-4 text-center">Dispute Status</th>
+                  <th className="py-3 px-4 text-center">Block Status</th>
                   <th className="py-3 px-4 text-center w-10">Flag</th>
                 </tr>
               </thead>

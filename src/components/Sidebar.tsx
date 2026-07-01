@@ -2,10 +2,13 @@ import { signOut } from "@/auth"
 import { can, type Role } from "@/lib/rbac"
 import { NavLink } from "./NavLink"
 
-const NAV = [
+// `hint` is an optional native tooltip shown on hover — a familiarity bridge so
+// agents migrating from CreditRepairCloud recognize renamed items (Blocks was
+// "Disputes" in CRC).
+const NAV: { href: string; label: string; icon: string; hint?: string }[] = [
   { href: "/dashboard",   label: "Dashboard",   icon: "dashboard" },
   { href: "/clients",     label: "Clients",      icon: "clients" },
-  { href: "/disputes",    label: "Disputes",     icon: "disputes" },
+  { href: "/disputes",    label: "Blocks",       icon: "disputes", hint: "Same as “Disputes” in CreditRepairCloud" },
   { href: "/letters",     label: "Letters",      icon: "letters" },
   { href: "/reports",     label: "Reports",      icon: "reports" },
   { href: "/loans",       label: "Loans",        icon: "loans" },
@@ -60,6 +63,7 @@ export default function Sidebar({
             href={item.href}
             label={item.label}
             icon={item.icon}
+            hint={item.hint}
             badge={item.href === "/disputes" && overdueCount > 0 ? overdueCount : undefined}
           />
         ))}

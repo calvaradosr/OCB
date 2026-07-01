@@ -8,8 +8,8 @@ import DeleteAutomationButton from "./DeleteAutomationButton"
 
 const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
   REPORT_IMPORTED: "Report imported",
-  DISPUTE_OUTCOME_DELETED: "Dispute item deleted",
-  DISPUTE_OUTCOME_ANY: "Any dispute outcome",
+  DISPUTE_OUTCOME_DELETED: "Item blocked",
+  DISPUTE_OUTCOME_ANY: "Any block outcome",
   FCRA_CLOCK_30_DAYS: "FCRA 30-day clock",
   FCRA_CLOCK_45_DAYS: "FCRA 45-day clock",
   CLIENT_CREATED: "New client created",
@@ -69,7 +69,7 @@ export default async function AutomationsPage() {
               },
               {
                 title: "Per-deletion invoice",
-                desc: "Automatically invoice clients for each deleted dispute item (CROA compliant)",
+                desc: "Automatically invoice clients for each blocked item (CROA compliant)",
                 params: "trigger=DISPUTE_OUTCOME_DELETED&action=CHARGE_PER_DELETE",
               },
               {
@@ -83,8 +83,8 @@ export default async function AutomationsPage() {
                 params: "trigger=INVOICE_OVERDUE&action=SEND_SMS",
               },
               {
-                title: "Dispute outcome email",
-                desc: "Email clients when any dispute outcome is recorded",
+                title: "Block outcome email",
+                desc: "Email clients when any block outcome is recorded",
                 params: "trigger=DISPUTE_OUTCOME_ANY&action=SEND_EMAIL",
               },
             ].map(t => (

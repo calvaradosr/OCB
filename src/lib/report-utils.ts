@@ -203,9 +203,12 @@ export const BUREAU_LABELS: Record<BureauValue, string> = {
   TRANSUNION: "TransUnion",
 }
 
+// Agent-facing outcome labels. The methodology is presented as "Blocking", so
+// the success outcome (DB enum DELETED) reads as "Blocked". Enum values/keys are
+// unchanged — this is display copy only.
 export const DISPUTE_OUTCOME_LABELS: Record<string, string> = {
   PENDING: "Pending",
-  DELETED: "Deleted",
+  DELETED: "Blocked",
   REPAIRED: "Repaired",
   VERIFIED: "Verified",
   NO_RESPONSE: "No Response",

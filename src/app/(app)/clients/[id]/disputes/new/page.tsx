@@ -38,12 +38,12 @@ export default async function NewDisputePage({ params }: { params: Promise<{ id:
         <span>›</span>
         <Link href={`/clients/${id}`} className="hover:text-ink">{client.firstName} {client.lastName}</Link>
         <span>›</span>
-        <Link href={`/clients/${id}/disputes`} className="hover:text-ink">Disputes</Link>
+        <Link href={`/clients/${id}/disputes`} className="hover:text-ink">Blocks</Link>
         <span>›</span>
-        <span className="text-ink font-medium">New Dispute</span>
+        <span className="text-ink font-medium">New Block</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-ink">Dispute Wizard</h1>
+      <h1 className="text-2xl font-bold text-ink">Blocking Wizard</h1>
 
       {items.length === 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 text-sm text-warning">

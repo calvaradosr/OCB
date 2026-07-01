@@ -93,7 +93,7 @@ export default async function PortalDashboard() {
           </div>
           <div className="flex justify-between text-xs text-muted">
             <span>{totalDeleted + totalRepaired} items removed or repaired</span>
-            <span>{totalDisputed} total disputed</span>
+            <span>{totalDisputed} total in blocking</span>
           </div>
           <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-secondary-soft">
             <div className="text-center">
@@ -151,8 +151,8 @@ export default async function PortalDashboard() {
 
       {totalDisputed === 0 && (
         <div className="bg-secondary-soft/30 rounded-xl border border-secondary-soft p-8 text-center">
-          <p className="text-sm font-medium text-ink">No disputes on file yet</p>
-          <p className="text-xs text-muted mt-1">Your specialist will begin the dispute process after reviewing your credit report.</p>
+          <p className="text-sm font-medium text-ink">No blocks on file yet</p>
+          <p className="text-xs text-muted mt-1">Your specialist will begin the blocking process after reviewing your credit report.</p>
         </div>
       )}
     </div>

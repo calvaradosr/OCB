@@ -93,7 +93,7 @@ export default async function LettersPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Letters</h1>
-          <p className="text-sm text-muted mt-0.5">Print queue — view, print, and track delivery of all dispute letters.</p>
+          <p className="text-sm text-muted mt-0.5">Print queue — view, print, and track delivery of all block letters.</p>
         </div>
         <div className="flex items-center gap-3">
           {totalUnsent > 0 && canWrite && !status && (
@@ -164,7 +164,7 @@ export default async function LettersPage({
       {letters.length === 0 ? (
         <div className="border border-dashed border-secondary-soft rounded-xl p-16 text-center">
           <p className="text-muted text-sm">No letters match the current filters.</p>
-          <p className="text-muted text-xs mt-1">Letters are generated when staff runs the dispute wizard on a client profile.</p>
+          <p className="text-muted text-xs mt-1">Letters are generated when staff runs the blocking wizard on a client profile.</p>
         </div>
       ) : (
         <div className="border border-secondary-soft rounded-xl overflow-hidden">
@@ -174,7 +174,7 @@ export default async function LettersPage({
                 <th className="py-3 px-4 text-left">Client</th>
                 <th className="py-3 px-4 text-left">Type</th>
                 <th className="py-3 px-4 text-left">Bureau</th>
-                <th className="py-3 px-4 text-left">Dispute</th>
+                <th className="py-3 px-4 text-left">Block</th>
                 <th className="py-3 px-4 text-left">Created</th>
                 <th className="py-3 px-4 text-left">Status</th>
                 <th className="py-3 px-4 text-left">Tracking / #</th>
