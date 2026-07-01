@@ -80,7 +80,7 @@ export default async function DisputesDashboard({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Blocks</h1>
-          <p className="text-sm text-muted mt-1">Blocking pipeline &amp; FCRA tracking</p>
+          <p className="text-sm text-muted mt-1">Blocking pipeline &amp; FCRA tracking &mdash; same as &ldquo;Disputes&rdquo; in CreditRepairCloud</p>
         </div>
         <Link href="/letters" className="text-xs text-primary hover:underline px-3 py-1.5 border border-secondary-soft rounded-lg">
           Print queue →
