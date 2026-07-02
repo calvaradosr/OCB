@@ -75,6 +75,42 @@ export default async function DashboardPage() {
     ? Math.round((deletedItems! / totalResolvedItems) * 100)
     : null
 
+  // Avg score lift across clients: per client, (latest composite score − earliest),
+  // averaged over clients with ≥2 scored reports. Composite = mean of the bureau
+  // scores present on a report. CRC surfaces score gains prominently, so mirror that.
+  const avgScoreLift = canDisputes
+    ? await (async () => {
+        const reports = await db.creditReport.findMany({
+          where: {
+            client: { orgId },
+            OR: [
+              { scoreTransunion: { not: null } },
+              { scoreExperian: { not: null } },
+              { scoreEquifax: { not: null } },
+            ],
+          },
+          select: { clientId: true, scoreTransunion: true, scoreExperian: true, scoreEquifax: true },
+          orderBy: { pulledAt: "asc" },
+        })
+        const composite = (r: (typeof reports)[number]): number | null => {
+          const vals = [r.scoreTransunion, r.scoreExperian, r.scoreEquifax].filter(
+            (v): v is number => v != null
+          )
+          return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
+        }
+        const byClient = new Map<string, { first: number; last: number; n: number }>()
+        for (const r of reports) {
+          const c = composite(r)
+          if (c == null) continue
+          const e = byClient.get(r.clientId)
+          if (!e) byClient.set(r.clientId, { first: c, last: c, n: 1 })
+          else { e.last = c; e.n++ } // reports are asc by pulledAt → last write = latest
+        }
+        const lifts = [...byClient.values()].filter(v => v.n >= 2).map(v => v.last - v.first)
+        return lifts.length ? Math.round(lifts.reduce((a, b) => a + b, 0) / lifts.length) : null
+      })()
+    : null
+
   // Billing stats
   const invoiceOrgScope = { client: { orgId } }
   const [collectedThisMonth, activeSubscriptions, failedInvoices] = canBilling
@@ -165,7 +201,7 @@ export default async function DashboardPage() {
           <KPI label="Active clients" value={String(activeClients ?? "—")} sub={`${leadsThisMonth ?? 0} new this month`} />
         )}
         {canDisputes && (
-          <KPI label="Deletion rate" value={deletionRate != null ? `${deletionRate}%` : "—"} sub={`${deletedItems ?? 0} / ${totalResolvedItems ?? 0} resolved`} accent="text-success" />
+          <KPI label="Block rate" value={deletionRate != null ? `${deletionRate}%` : "—"} sub={`${deletedItems ?? 0} / ${totalResolvedItems ?? 0} resolved`} accent="text-success" />
         )}
         {canBilling && (
           <KPI label="Revenue this month" value={`$${(((collectedThisMonth as number) ?? 0) / 100).toLocaleString()}`} accent="text-success" sub={`${activeSubscriptions ?? 0} active subs`} />
@@ -188,6 +224,7 @@ export default async function DashboardPage() {
                 { label: "open blocks", value: String(openDisputes ?? "—") },
                 { label: "letters pending", value: String(pendingLetters ?? "—") },
                 { label: "block rate", value: deletionRate != null ? `${deletionRate}%` : "—" },
+                { label: "avg score lift", value: avgScoreLift != null ? `${avgScoreLift > 0 ? "+" : ""}${avgScoreLift}` : "—" },
               ]}
             />
           )}
@@ -249,6 +286,7 @@ export default async function DashboardPage() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${daysLeft <= 2 ? "bg-danger" : "bg-primary"}`} />
                     <span className="text-sm text-ink truncate">
                       FCRA response due — {item.dispute.client.firstName} {item.dispute.client.lastName}
+                      <span className="text-muted"> · Round {item.dispute.round}</span>
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
