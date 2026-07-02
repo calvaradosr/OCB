@@ -189,8 +189,8 @@ export default async function ReportsPage() {
       <section>
         <h2 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Blocking Performance</h2>
         <div className="grid grid-cols-4 gap-4">
-          <KPI label="Deletion rate" value={`${deletionRate}%`} accent="text-success" sub={`${deletedItems} deleted / ${totalResolved} resolved`} />
-          <KPI label="Removal rate" value={`${removalRate}%`} accent="text-primary" sub="Deleted + Repaired" />
+          <KPI label="Block rate" value={`${deletionRate}%`} accent="text-success" sub={`${deletedItems} blocked / ${totalResolved} resolved`} />
+          <KPI label="Removal rate" value={`${removalRate}%`} accent="text-primary" sub="Blocked + Repaired" />
           <KPI label="Open items" value={String(openItems)} accent={openItems > 0 ? "text-warning" : "text-ink"} />
           <KPI label="FCRA overdue" value={String(overdueItems)} accent={overdueItems > 0 ? "text-danger" : "text-ink"} sub={overdueItems > 0 ? "Action required" : "All on track"} />
         </div>
